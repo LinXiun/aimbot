@@ -1,3 +1,12 @@
+-- Duplicate Execution Guard
+if _G.BloxAssistLoaded then
+    local oldGui = game.CoreGui:FindFirstChild("BloxAssistGui")
+    if oldGui then oldGui:Destroy() end
+    local oldHigh = game.CoreGui:FindFirstChild("AssistHighlight")
+    if oldHigh then oldHigh:Destroy() end
+end
+_G.BloxAssistLoaded = true
+
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -6,196 +15,231 @@ local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Variables for Settings
+-- Settings
 local _G = {
     Enabled = true,
     LockActive = false, 
-    TeamCheck = true, -- NEW: Ignore teammates
+    TeamCheck = true, 
+    ClickToTarget = true,
+    TargetPart = "Head",
     Sensitivity = 0.5, 
     BoxSize = 200,    
     BoxColor = Color3.fromRGB(0, 255, 255),
+    BoxOffsetX = 0, 
+    BoxOffsetY = 0,
+    HighlightAlpha = 0.5, -- New Highlight Setting
     AimKey = Enum.UserInputType.MouseButton2,
-    IsMinimized = false
+    IsMinimized = false,
+    LockedPlayer = nil,
+    TouchStartPos = Vector2.new(0,0),
+    TouchStartTime = 0
 }
 
--- Create GUI
-local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local UICorner = Instance.new("UICorner")
-local UIStroke = Instance.new("UIStroke")
-local Title = Instance.new("TextLabel")
-local SensitivitySlider = Instance.new("TextBox")
-local BoxSizeSlider = Instance.new("TextBox")
-local LockBtn = Instance.new("TextButton") 
-local TeamBtn = Instance.new("TextButton") -- NEW: Team Check Toggle
-local CloseBtn = Instance.new("TextButton") 
-local FOVBox = Instance.new("Frame")
-local FOVStroke = Instance.new("UIStroke")
+-- Target Highlight Object
+local TargetHighlight = Instance.new("Highlight")
+TargetHighlight.Name = "AssistHighlight"
+TargetHighlight.FillTransparency = _G.HighlightAlpha
+TargetHighlight.OutlineTransparency = 0
+TargetHighlight.OutlineColor = _G.BoxColor
+TargetHighlight.Parent = game.CoreGui
 
--- GUI Setup
-ScreenGui.Name = "BloxFruitsUltra"
-ScreenGui.Parent = game.CoreGui
-ScreenGui.ResetOnSpawn = false
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "BloxAssistGui"
+local MainFrame = Instance.new("Frame", ScreenGui)
+local UICorner = Instance.new("UICorner", MainFrame)
+local UIStroke = Instance.new("UIStroke", MainFrame)
+local CloseBtn = Instance.new("TextButton", MainFrame) 
 
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
+-- FOV Box (No Dot)
+local FOVBox = Instance.new("Frame", ScreenGui)
+local FOVStroke = Instance.new("UIStroke", FOVBox)
+
+-- Styling
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BackgroundTransparency = 0.3
-MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
-MainFrame.Size = UDim2.new(0, 200, 0, 320) -- Slightly taller for new button
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainFrame.Size = UDim2.new(0, 220, 0, 520) -- Slightly taller for new controls
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.ClipsDescendants = true
-
 UICorner.CornerRadius = UDim.new(0, 15)
-UICorner.Parent = MainFrame
-
 UIStroke.Thickness = 2
 UIStroke.Color = Color3.new(1, 1, 1)
-UIStroke.Transparency = 0.8
-UIStroke.Parent = MainFrame
 
--- Minimize Button
-CloseBtn.Name = "CloseBtn"
-CloseBtn.Parent = MainFrame
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 5)
-CloseBtn.Text = "X"
-CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseBtn.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
-
--- Lock Toggle
-LockBtn.Name = "LockBtn"
-LockBtn.Parent = MainFrame
-LockBtn.Position = UDim2.new(0.1, 0, 0.65, 0)
-LockBtn.Size = UDim2.new(0.8, 0, 0, 35)
-LockBtn.Text = "Magnetic: OFF"
-LockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-LockBtn.TextColor3 = Color3.new(1, 1, 1)
-LockBtn.Font = Enum.Font.SourceSansBold
-Instance.new("UICorner", LockBtn).CornerRadius = UDim.new(0, 8)
-
--- Team Check Toggle
-TeamBtn.Name = "TeamBtn"
-TeamBtn.Parent = MainFrame
-TeamBtn.Position = UDim2.new(0.1, 0, 0.82, 0)
-TeamBtn.Size = UDim2.new(0.8, 0, 0, 35)
-TeamBtn.Text = "Team Check: ON"
-TeamBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-TeamBtn.TextColor3 = Color3.new(1, 1, 1)
-TeamBtn.Font = Enum.Font.SourceSansBold
-Instance.new("UICorner", TeamBtn).CornerRadius = UDim.new(0, 8)
-
--- Labels and Inputs
-Title.Parent = MainFrame
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.Text = "Blox Assist"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.BackgroundTransparency = 1
-Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 18
-
-SensitivitySlider.Parent = MainFrame
-SensitivitySlider.Position = UDim2.new(0.1, 0, 0.2, 0)
-SensitivitySlider.Size = UDim2.new(0.8, 0, 0, 35)
-SensitivitySlider.Text = "Sens: " .. tostring(_G.Sensitivity)
-SensitivitySlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-SensitivitySlider.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", SensitivitySlider).CornerRadius = UDim.new(0, 5)
-
-BoxSizeSlider.Parent = MainFrame
-BoxSizeSlider.Position = UDim2.new(0.1, 0, 0.4, 0)
-BoxSizeSlider.Size = UDim2.new(0.8, 0, 0, 35)
-BoxSizeSlider.Text = "Box: " .. tostring(_G.BoxSize)
-BoxSizeSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-BoxSizeSlider.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", BoxSizeSlider).CornerRadius = UDim.new(0, 5)
-
--- FOV Box
-FOVBox.Name = "FOVBox"
-FOVBox.Parent = ScreenGui
 FOVBox.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVBox.Position = UDim2.new(0.5, 0, 0.5, 0)
 FOVBox.BackgroundTransparency = 1
 FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize)
 FOVStroke.Thickness = 2
 FOVStroke.Color = _G.BoxColor
-FOVStroke.Parent = FOVBox
 
--- Logic: UI Interaction
+-- Controls Factory
+local function createControl(pos, text, parent)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(0.9, 0, 0, 30); frame.Position = pos; frame.BackgroundTransparency = 1
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0.4, 0, 1, 0); label.Text = text; label.TextColor3 = Color3.new(1,1,1); label.BackgroundTransparency = 1; label.TextScaled = true
+    local minus = Instance.new("TextButton", frame)
+    minus.Size = UDim2.new(0.2, 0, 0.8, 0); minus.Position = UDim2.new(0.45, 0, 0.1, 0); minus.Text = "-"
+    local plus = Instance.new("TextButton", frame)
+    plus.Size = UDim2.new(0.2, 0, 0.8, 0); plus.Position = UDim2.new(0.7, 0, 0.1, 0); plus.Text = "+"
+    Instance.new("UICorner", minus); Instance.new("UICorner", plus)
+    return minus, plus
+end
+
+local sM, sP = createControl(UDim2.new(0.05, 0, 0.08, 0), "Sens", MainFrame)
+local szM, szP = createControl(UDim2.new(0.05, 0, 0.15, 0), "Size", MainFrame)
+local xM, xP = createControl(UDim2.new(0.05, 0, 0.22, 0), "Move Y", MainFrame)
+local yM, yP = createControl(UDim2.new(0.05, 0, 0.29, 0), "Move X", MainFrame)
+local hM, hP = createControl(UDim2.new(0.05, 0, 0.36, 0), "Glow", MainFrame) -- Highlight Scaler
+
+local function handleHold(btn, callback)
+    local holding = false
+    btn.MouseButton1Down:Connect(function() holding = true while holding do callback() task.wait(0.03) end end)
+    btn.MouseButton1Up:Connect(function() holding = false end)
+    btn.MouseLeave:Connect(function() holding = false end)
+end
+
+handleHold(sM, function() _G.Sensitivity = math.max(0.01, _G.Sensitivity - 0.05) end)
+handleHold(sP, function() _G.Sensitivity = math.min(5, _G.Sensitivity + 0.05) end)
+handleHold(szM, function() _G.BoxSize = math.max(10, _G.BoxSize - 5) FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize) end)
+handleHold(szP, function() _G.BoxSize = math.min(800, _G.BoxSize + 5) FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize) end)
+handleHold(xM, function() _G.BoxOffsetX -= 5 end)
+handleHold(xP, function() _G.BoxOffsetX += 5 end)
+handleHold(yM, function() _G.BoxOffsetY -= 5 end)
+handleHold(yP, function() _G.BoxOffsetY += 5 end)
+handleHold(hM, function() _G.HighlightAlpha = math.min(1, _G.HighlightAlpha + 0.05) TargetHighlight.FillTransparency = _G.HighlightAlpha end)
+handleHold(hP, function() _G.HighlightAlpha = math.max(0, _G.HighlightAlpha - 0.05) TargetHighlight.FillTransparency = _G.HighlightAlpha end)
+
+-- Toggles
+local function createToggle(pos, text, parent, default)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(0.8, 0, 0, 35); btn.Position = pos; btn.Text = text
+    btn.BackgroundColor3 = default and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(50, 50, 50)
+    btn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", btn); return btn
+end
+
+local LockBtn = createToggle(UDim2.new(0.1, 0, 0.45, 0), "Lock: OFF", MainFrame, false)
+local TeamBtn = createToggle(UDim2.new(0.1, 0, 0.53, 0), "Team Check: ON", MainFrame, true)
+local ClickBtn = createToggle(UDim2.new(0.1, 0, 0.61, 0), "Click Target: ON", MainFrame, true)
+local PartBtn = createToggle(UDim2.new(0.1, 0, 0.69, 0), "Part: Head", MainFrame, false)
+
+PartBtn.MouseButton1Click:Connect(function()
+    if _G.TargetPart == "Head" then _G.TargetPart = "UpperTorso"; PartBtn.Text = "Part: Torso"
+    elseif _G.TargetPart == "UpperTorso" then _G.TargetPart = "Random"; PartBtn.Text = "Part: Random"
+    else _G.TargetPart = "Head"; PartBtn.Text = "Part: Head" end
+end)
+
+LockBtn.MouseButton1Click:Connect(function() 
+    _G.LockActive = not _G.LockActive; LockBtn.Text = _G.LockActive and "Lock: ON" or "Lock: OFF"
+    LockBtn.BackgroundColor3 = _G.LockActive and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50) 
+end)
+TeamBtn.MouseButton1Click:Connect(function() 
+    _G.TeamCheck = not _G.TeamCheck; TeamBtn.Text = _G.TeamCheck and "Team Check: ON" or "Team Check: OFF"
+    TeamBtn.BackgroundColor3 = _G.TeamCheck and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(50, 50, 50) 
+end)
+ClickBtn.MouseButton1Click:Connect(function() 
+    _G.ClickToTarget = not _G.ClickToTarget; ClickBtn.Text = _G.ClickToTarget and "Click Target: ON" or "Click Target: OFF"
+    ClickBtn.BackgroundColor3 = _G.ClickToTarget and Color3.fromRGB(150, 150, 0) or Color3.fromRGB(50, 50, 50) 
+end)
+
+CloseBtn.Size = UDim2.new(0, 30, 0, 30); CloseBtn.Position = UDim2.new(1, -35, 0, 5); CloseBtn.Text = "X"; CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
 CloseBtn.MouseButton1Click:Connect(function()
     _G.IsMinimized = not _G.IsMinimized
-    local targetSize = _G.IsMinimized and UDim2.new(0, 50, 0, 50) or UDim2.new(0, 200, 0, 320)
+    local targetSize = _G.IsMinimized and UDim2.new(0, 50, 0, 50) or UDim2.new(0, 220, 0, 520)
     TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = targetSize}):Play()
-    CloseBtn.Text = _G.IsMinimized and "+" or "X"
-    Title.Visible = not _G.IsMinimized
-    SensitivitySlider.Visible = not _G.IsMinimized
-    BoxSizeSlider.Visible = not _G.IsMinimized
-    LockBtn.Visible = not _G.IsMinimized
-    TeamBtn.Visible = not _G.IsMinimized
+    for _, v in pairs(MainFrame:GetChildren()) do if v:IsA("Frame") or v:IsA("TextButton") then v.Visible = not _G.IsMinimized end end
+    CloseBtn.Visible = true; CloseBtn.Text = _G.IsMinimized and "+" or "X"
 end)
 
-LockBtn.MouseButton1Click:Connect(function()
-    _G.LockActive = not _G.LockActive
-    LockBtn.Text = _G.LockActive and "Magnetic: ON" or "Magnetic: OFF"
-    LockBtn.BackgroundColor3 = _G.LockActive and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
-end)
-
-TeamBtn.MouseButton1Click:Connect(function()
-    _G.TeamCheck = not _G.TeamCheck
-    TeamBtn.Text = _G.TeamCheck and "Team Check: ON" or "Team Check: OFF"
-    TeamBtn.BackgroundColor3 = _G.TeamCheck and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(50, 50, 50)
-end)
-
-SensitivitySlider.FocusLost:Connect(function()
-    local val = tonumber(SensitivitySlider.Text:match("%d+%.?%d*"))
-    if val then _G.Sensitivity = math.clamp(val, 0.01, 2) end -- Increased cap for "much stronger"
-    SensitivitySlider.Text = "Sens: " .. tostring(_G.Sensitivity)
-end)
-
-BoxSizeSlider.FocusLost:Connect(function()
-    local val = tonumber(BoxSizeSlider.Text:match("%d+"))
-    if val then 
-        _G.BoxSize = math.clamp(val, 10, 800)
-        FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize)
+-- Swipe Filter Logic
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe or not _G.ClickToTarget then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        _G.TouchStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        _G.TouchStartTime = tick()
     end
-    BoxSizeSlider.Text = "Box: " .. tostring(_G.BoxSize)
 end)
 
--- Aim Logic
+UserInputService.InputEnded:Connect(function(input, gpe)
+    if gpe or not _G.ClickToTarget then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local endPos = Vector2.new(input.Position.X, input.Position.Y)
+        local moveDist = (endPos - _G.TouchStartPos).Magnitude
+        if (tick() - _G.TouchStartTime) < 0.25 and moveDist < 20 then
+            local closest = nil; local shortDist = 180 
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local part = p.Character:FindFirstChild("HumanoidRootPart")
+                    if part then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local d = (Vector2.new(screenPos.X, screenPos.Y) - endPos).Magnitude
+                            if d < shortDist then shortDist = d; closest = p end
+                        end
+                    end
+                end
+            end
+            if _G.LockedPlayer == closest then _G.LockedPlayer = nil else _G.LockedPlayer = closest end
+        end
+    end
+end)
+
 local isHoldingAim = false
 UserInputService.InputBegan:Connect(function(i, g) if not g and i.UserInputType == _G.AimKey then isHoldingAim = true end end)
 UserInputService.InputEnded:Connect(function(i) if i.UserInputType == _G.AimKey then isHoldingAim = false end end)
 
-local function getTarget()
-    local target, minDistance = nil, _G.BoxSize / 2
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-            -- Team Check Logic
-            if _G.TeamCheck and player.Team == LocalPlayer.Team then continue end
-            
-            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.Head.Position)
-            if onScreen then
-                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
-                if dist < minDistance then
-                    minDistance = dist
-                    target = player.Character.Head
+-- Core Loop
+RunService.RenderStepped:Connect(function()
+    local invCenter = Vector2.new(Camera.ViewportSize.X/2 + _G.BoxOffsetY, Camera.ViewportSize.Y/2 + _G.BoxOffsetX)
+    FOVBox.Position = UDim2.new(0, invCenter.X, 0, invCenter.Y)
+    
+    -- Auto-Unlock on Death Check
+    if _G.LockedPlayer then
+        if not _G.LockedPlayer.Character or not _G.LockedPlayer.Character:FindFirstChild("Humanoid") or _G.LockedPlayer.Character.Humanoid.Health <= 0 then
+            _G.LockedPlayer = nil
+        end
+    end
+
+    if _G.LockedPlayer and _G.LockedPlayer.Character then
+        TargetHighlight.Adornee = _G.LockedPlayer.Character; TargetHighlight.Enabled = true
+    else
+        TargetHighlight.Enabled = false
+    end
+
+    if _G.Enabled then
+        local target = nil; local hardLock = false
+        
+        if _G.ClickToTarget and _G.LockedPlayer and _G.LockedPlayer.Character then
+            target = _G.LockedPlayer.Character:FindFirstChild(_G.TargetPart) or _G.LockedPlayer.Character:FindFirstChild("HumanoidRootPart")
+            hardLock = true 
+        elseif _G.LockActive or isHoldingAim then
+            local minDist = _G.BoxSize / 2
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+                    if _G.TeamCheck and player.Team == LocalPlayer.Team then continue end
+                    local part = player.Character:FindFirstChild(_G.TargetPart) or player.Character:FindFirstChild("HumanoidRootPart")
+                    if part then
+                        local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local d = (Vector2.new(pos.X, pos.Y) - invCenter).Magnitude
+                            if d < minDist then minDist = d; target = part end
+                        end
+                    end
                 end
             end
         end
-    end
-    return target
-end
-
-RunService.RenderStepped:Connect(function()
-    if _G.Enabled and (isHoldingAim or _G.LockActive) then
-        local target = getTarget()
+        
         if target then
-            -- BUFFED PULL: We use a higher Lerp weight and more direct math
-            local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
-            -- Strength is now much more noticeable at high Sensitivity
-            Camera.CFrame = Camera.CFrame:Lerp(lookAt, _G.Sensitivity * 0.35) 
+            local lookAt = CFrame.lookAt(Camera.CFrame.Position, target.Position)
+            local centerRay = Camera:ViewportPointToRay(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+            local offsetRay = Camera:ViewportPointToRay(invCenter.X, invCenter.Y)
+            local offRot = CFrame.lookAt(Vector3.zero, centerRay.Direction):ToObjectSpace(CFrame.lookAt(Vector3.zero, offsetRay.Direction))
+            local final = lookAt * offRot:Inverse()
+            local pull = _G.Sensitivity * 0.25
+            if not hardLock then pull = pull * 0.6 end
+            Camera.CFrame = Camera.CFrame:Lerp(final, pull)
         end
     end
 end)
