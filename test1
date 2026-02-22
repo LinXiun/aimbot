@@ -1,0 +1,298 @@
+-- Duplicate Execution Guard
+if _G.BloxAssistLoaded then
+    local oldGui = game.CoreGui:FindFirstChild("BloxAssistGui")
+    if oldGui then oldGui:Destroy() end
+    local oldHigh = game.CoreGui:FindFirstChild("AssistHighlight")
+    if oldHigh then oldHigh:Destroy() end
+end
+_G.BloxAssistLoaded = true
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- Settings
+local _G = {
+    Enabled = true,
+    LockActive = false, 
+    TeamCheck = true, 
+    ClickToTarget = true,
+    SkillMode = false, 
+    TargetPart = "Head",
+    Sensitivity = 0.5, 
+    BoxSize = 200,    
+    BoxColor = Color3.fromRGB(0, 255, 255),
+    BoxOffsetX = 0, 
+    BoxOffsetY = 0,
+    HighlightAlpha = 0.5, 
+    IsMinimized = false,
+    LockedPlayer = nil,
+    -- Internal Logic
+    TouchStartPos = Vector2.new(0,0),
+    IsInteracting = false, 
+    CurrentSkillTarget = nil
+}
+
+-- Target Highlight Object
+local TargetHighlight = Instance.new("Highlight")
+TargetHighlight.Name = "AssistHighlight"
+TargetHighlight.FillTransparency = _G.HighlightAlpha
+TargetHighlight.OutlineTransparency = 0
+TargetHighlight.OutlineColor = _G.BoxColor
+TargetHighlight.Parent = game.CoreGui
+
+-- GUI Creation (Smaller Scroller)
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "BloxAssistGui"
+local MainFrame = Instance.new("Frame", ScreenGui)
+local UICorner = Instance.new("UICorner", MainFrame)
+local UIStroke = Instance.new("UIStroke", MainFrame)
+local CloseBtn = Instance.new("TextButton", MainFrame) 
+local TitleBar = Instance.new("TextLabel", MainFrame)
+local ScrollFrame = Instance.new("ScrollingFrame", MainFrame)
+local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
+
+-- Styling
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15); MainFrame.BackgroundTransparency = 0.3
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0); MainFrame.Size = UDim2.new(0, 160, 0, 220)
+MainFrame.Active = true; MainFrame.Draggable = true; UICorner.CornerRadius = UDim.new(0, 10)
+UIStroke.Thickness = 1.5; UIStroke.Color = Color3.new(1, 1, 1)
+
+TitleBar.Size = UDim2.new(1, -35, 0, 30); TitleBar.Position = UDim2.new(0, 5, 0, 0); TitleBar.BackgroundTransparency = 1
+TitleBar.Text = "Blox Assist"; TitleBar.TextColor3 = Color3.new(1,1,1); TitleBar.Font = Enum.Font.GothamBold; TitleBar.TextXAlignment = Enum.TextXAlignment.Left
+
+ScrollFrame.Size = UDim2.new(1, 0, 1, -35); ScrollFrame.Position = UDim2.new(0, 0, 0, 35); ScrollFrame.BackgroundTransparency = 1; ScrollFrame.ScrollBarThickness = 2
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 420); ScrollFrame.BorderSizePixel = 0
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder; UIListLayout.Padding = UDim.new(0, 5); UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- FOV Box
+local FOVBox = Instance.new("Frame", ScreenGui); local FOVStroke = Instance.new("UIStroke", FOVBox)
+FOVBox.AnchorPoint = Vector2.new(0.5, 0.5); FOVBox.BackgroundTransparency = 1; FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize)
+FOVStroke.Thickness = 2; FOVStroke.Color = _G.BoxColor
+
+-- Factory Functions
+local function createControl(text, parent)
+    local frame = Instance.new("Frame", parent); frame.Size = UDim2.new(0.9, 0, 0, 30); frame.BackgroundTransparency = 1
+    local label = Instance.new("TextLabel", frame); label.Size = UDim2.new(0.4, 0, 1, 0); label.Text = text; label.TextColor3 = Color3.new(1,1,1); label.BackgroundTransparency = 1; label.TextScaled = true
+    local m = Instance.new("TextButton", frame); m.Size = UDim2.new(0.2, 0, 0.8, 0); m.Position = UDim2.new(0.45, 0, 0.1, 0); m.Text = "-"
+    local p = Instance.new("TextButton", frame); p.Size = UDim2.new(0.2, 0, 0.8, 0); p.Position = UDim2.new(0.7, 0, 0.1, 0); p.Text = "+"
+    Instance.new("UICorner", m); Instance.new("UICorner", p)
+    return m, p
+end
+
+local function createToggle(text, parent, default)
+    local btn = Instance.new("TextButton", parent); btn.Size = UDim2.new(0.9, 0, 0, 30); btn.Text = text
+    btn.BackgroundColor3 = default and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(50, 50, 50); btn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", btn)
+    return btn
+end
+
+-- UI Controls
+local sM, sP = createControl("Sens", ScrollFrame)
+local szM, szP = createControl("Size", ScrollFrame)
+local xM, xP = createControl("Move Y", ScrollFrame)
+local yM, yP = createControl("Move X", ScrollFrame)
+local hM, hP = createControl("Glow", ScrollFrame) 
+
+local SkillBtn = createToggle("Skill Mode: OFF", ScrollFrame, false)
+local LockBtn = createToggle("Lock: OFF", ScrollFrame, false)
+local ClickBtn = createToggle("Click Target: ON", ScrollFrame, true)
+local TeamBtn = createToggle("Team Check: ON", ScrollFrame, true)
+local PartBtn = createToggle("Part: Head", ScrollFrame, false)
+
+-- Logic Handlers
+local function handleHold(btn, callback)
+    local h = false
+    btn.MouseButton1Down:Connect(function() h = true while h do callback() task.wait(0.03) end end)
+    btn.MouseButton1Up:Connect(function() h = false end); btn.MouseLeave:Connect(function() h = false end)
+end
+
+handleHold(sM, function() _G.Sensitivity = math.max(0.01, _G.Sensitivity - 0.05) end)
+handleHold(sP, function() _G.Sensitivity = math.min(5, _G.Sensitivity + 0.05) end)
+handleHold(szM, function() _G.BoxSize = math.max(10, _G.BoxSize - 5) FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize) end)
+handleHold(szP, function() _G.BoxSize = math.min(800, _G.BoxSize + 5) FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize) end)
+handleHold(xM, function() _G.BoxOffsetX -= 5 end)
+handleHold(xP, function() _G.BoxOffsetX += 5 end)
+handleHold(yM, function() _G.BoxOffsetY -= 5 end)
+handleHold(yP, function() _G.BoxOffsetY += 5 end)
+handleHold(hM, function() _G.HighlightAlpha = math.min(1, _G.HighlightAlpha + 0.05) TargetHighlight.FillTransparency = _G.HighlightAlpha end)
+handleHold(hP, function() _G.HighlightAlpha = math.max(0, _G.HighlightAlpha - 0.05) TargetHighlight.FillTransparency = _G.HighlightAlpha end)
+
+local function UpdateUI()
+    SkillBtn.Text = _G.SkillMode and "Skill Mode: ON" or "Skill Mode: OFF"
+    SkillBtn.BackgroundColor3 = _G.SkillMode and Color3.fromRGB(150, 0, 150) or Color3.fromRGB(50, 50, 50)
+    LockBtn.Text = _G.LockActive and "Lock: ON" or "Lock: OFF"
+    LockBtn.BackgroundColor3 = _G.LockActive and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+    ClickBtn.Text = _G.ClickToTarget and "Click Target: ON" or "Click Target: OFF"
+    ClickBtn.BackgroundColor3 = _G.ClickToTarget and Color3.fromRGB(150, 150, 0) or Color3.fromRGB(50, 50, 50)
+    FOVBox.Visible = not _G.SkillMode
+end
+
+SkillBtn.MouseButton1Click:Connect(function() _G.SkillMode = not _G.SkillMode; if _G.SkillMode then _G.LockActive = false; _G.LockedPlayer = nil end UpdateUI() end)
+LockBtn.MouseButton1Click:Connect(function() if not _G.SkillMode then _G.LockActive = not _G.LockActive; UpdateUI() end end)
+ClickBtn.MouseButton1Click:Connect(function() if not _G.SkillMode then _G.ClickToTarget = not _G.ClickToTarget; UpdateUI() end end)
+PartBtn.MouseButton1Click:Connect(function()
+    if _G.TargetPart == "Head" then _G.TargetPart = "UpperTorso"; PartBtn.Text = "Part: Torso"
+    elseif _G.TargetPart == "UpperTorso" then _G.TargetPart = "Random"; PartBtn.Text = "Part: Random"
+    else _G.TargetPart = "Head"; PartBtn.Text = "Part: Head" end
+end)
+TeamBtn.MouseButton1Click:Connect(function() _G.TeamCheck = not _G.TeamCheck; TeamBtn.Text = _G.TeamCheck and "Team Check: ON" or "Team Check: OFF"; TeamBtn.BackgroundColor3 = _G.TeamCheck and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(50, 50, 50) end)
+
+CloseBtn.Size = UDim2.new(0, 25, 0, 25); CloseBtn.Position = UDim2.new(1, -30, 0, 2); CloseBtn.Text = "X"; CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
+CloseBtn.MouseButton1Click:Connect(function()
+    _G.IsMinimized = not _G.IsMinimized
+    local ts = _G.IsMinimized and UDim2.new(0, 50, 0, 30) or UDim2.new(0, 160, 0, 220)
+    TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = ts}):Play()
+    ScrollFrame.Visible = not _G.IsMinimized; TitleBar.Visible = not _G.IsMinimized; CloseBtn.Text = _G.IsMinimized and "+" or "X"
+end)
+
+------------------------------------------
+-- SWIPE PRIORITY LOGIC
+------------------------------------------
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        _G.TouchStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        _G.IsInteracting = true
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input, gpe)
+    if gpe then return end
+    if _G.IsInteracting and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        -- If moving more than 5 pixels, it's a swipe, not a tap
+        local dist = (Vector2.new(input.Position.X, input.Position.Y) - _G.TouchStartPos).Magnitude
+        if dist > 5 then
+            _G.IsSwiping = true 
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gpe)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local endPos = Vector2.new(input.Position.X, input.Position.Y)
+        local dist = (endPos - _G.TouchStartPos).Magnitude
+        
+        -- Prioritize Swipe: Only target if it was a clean tap (less than 15 pixels movement)
+        if _G.ClickToTarget and not _G.SkillMode and dist < 15 then
+            local closest, shortDist = nil, 150 
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+                    if onScreen then
+                        local d = (Vector2.new(screenPos.X, screenPos.Y) - endPos).Magnitude
+                        if d < shortDist then shortDist = d; closest = p end
+                    end
+                end
+            end
+            if closest then _G.LockedPlayer = closest end
+        end
+        _G.IsInteracting = false
+        _G.IsSwiping = false
+    end
+end)
+
+------------------------------------------
+-- SILENT AIM & OPTIMIZATION
+------------------------------------------
+local function getClosestPlayerFull3D()
+    local c, s = nil, math.huge
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+            if _G.TeamCheck and p.Team == LocalPlayer.Team then continue end
+            local d = (p.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+            if d < s then s = d; c = p end
+        end
+    end
+    return c
+end
+
+local mt = getrawmetatable(game); local oldIndex = mt.__index; local oldNamecall = mt.__namecall; setreadonly(mt, false)
+mt.__index = newcclosure(function(t, k)
+    if _G.SkillMode and t == Mouse and (k == "Hit" or k == "Target") then
+        local tar = _G.CurrentSkillTarget
+        if tar and tar.Character and tar.Character:FindFirstChild("HumanoidRootPart") then
+            if k == "Hit" then return tar.Character.HumanoidRootPart.CFrame end
+            if k == "Target" then return tar.Character.HumanoidRootPart end
+        end
+    end
+    return oldIndex(t, k)
+end)
+mt.__namecall = newcclosure(function(self, ...)
+    local m = getnamecallmethod(); local a = {...}
+    if _G.SkillMode and (m == "Raycast" or m == "FindPartOnRay") then
+        local tar = _G.CurrentSkillTarget
+        if tar and tar.Character and tar.Character:FindFirstChild("HumanoidRootPart") then
+            local tp = tar.Character.HumanoidRootPart.Position
+            if m == "Raycast" then a[2] = (tp - a[1]).Unit * a[2].Magnitude
+            else a[1] = Ray.new(a[1].Origin, (tp - a[1].Origin).Unit * a[1].Direction.Magnitude) end
+            return oldNamecall(self, unpack(a))
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+setreadonly(mt, true)
+
+------------------------------------------
+-- RENDER LOOP
+------------------------------------------
+RunService.RenderStepped:Connect(function()
+    local invCenter = Vector2.new(Camera.ViewportSize.X/2 + _G.BoxOffsetY, Camera.ViewportSize.Y/2 + _G.BoxOffsetX)
+    FOVBox.Position = UDim2.new(0, invCenter.X, 0, invCenter.Y)
+    
+    -- Cleanup
+    if _G.LockedPlayer and (not _G.LockedPlayer.Character or not _G.LockedPlayer.Character:FindFirstChild("Humanoid") or _G.LockedPlayer.Character.Humanoid.Health <= 0) then
+        _G.LockedPlayer = nil
+    end
+
+    if _G.SkillMode then
+        -- SKILL MODE: Pure Silent Aim, No Camera movement
+        _G.CurrentSkillTarget = getClosestPlayerFull3D()
+        TargetHighlight.Adornee = _G.CurrentSkillTarget and _G.CurrentSkillTarget.Character or nil
+        TargetHighlight.Enabled = (_G.CurrentSkillTarget ~= nil)
+    else
+        -- AIM MODE: Normal Lock-On
+        TargetHighlight.Adornee = _G.LockedPlayer and _G.LockedPlayer.Character or nil
+        TargetHighlight.Enabled = (_G.LockedPlayer ~= nil)
+        
+        -- Priority Check: Don't move camera if user is swiping
+        if _G.Enabled and not _G.IsSwiping then
+            local target = nil
+            local hardLock = false
+            
+            if _G.LockedPlayer then
+                target = _G.LockedPlayer.Character:FindFirstChild(_G.TargetPart) or _G.LockedPlayer.Character:FindFirstChild("HumanoidRootPart")
+                hardLock = true 
+            elseif _G.LockActive then
+                local minDist = _G.BoxSize / 2
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+                        if _G.TeamCheck and player.Team == LocalPlayer.Team then continue end
+                        local part = player.Character:FindFirstChild(_G.TargetPart) or player.Character:FindFirstChild("HumanoidRootPart")
+                        if part then
+                            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                            if onScreen then
+                                local d = (Vector2.new(pos.X, pos.Y) - invCenter).Magnitude
+                                if d < minDist then minDist = d; target = part end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if target then
+                local lookAt = CFrame.lookAt(Camera.CFrame.Position, target.Position)
+                local centerRay = Camera:ViewportPointToRay(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+                local offsetRay = Camera:ViewportPointToRay(invCenter.X, invCenter.Y)
+                local offRot = CFrame.lookAt(Vector3.zero, centerRay.Direction):ToObjectSpace(CFrame.lookAt(Vector3.zero, offsetRay.Direction))
+                local final = lookAt * offRot:Inverse()
+                Camera.CFrame = Camera.CFrame:Lerp(final, _G.Sensitivity * (hardLock and 0.2 else 0.1))
+            end
+        end
+    end
+end)
