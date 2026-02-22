@@ -1,0 +1,175 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Variables for Settings
+local _G = {
+    Enabled = true,
+    Sensitivity = 0.5, 
+    BoxSize = 200,    
+    BoxColor = Color3.fromRGB(0, 255, 255),
+    AimKey = Enum.UserInputType.MouseButton2,
+    IsMinimized = false
+}
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local UICorner = Instance.new("UICorner")
+local UIStroke = Instance.new("UIStroke")
+local Title = Instance.new("TextLabel")
+local SensitivitySlider = Instance.new("TextBox")
+local BoxSizeSlider = Instance.new("TextBox")
+local CloseBtn = Instance.new("TextButton")
+local FOVBox = Instance.new("Frame")
+local FOVStroke = Instance.new("UIStroke")
+
+-- GUI Setup (Glass Effect Style)
+ScreenGui.Name = "SeamlessGlassScript"
+ScreenGui.Parent = game.CoreGui
+ScreenGui.ResetOnSpawn = false
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BackgroundTransparency = 0.3 
+MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 200, 0, 250)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+
+UICorner.CornerRadius = UDim.new(0, 15)
+UICorner.Parent = MainFrame
+
+UIStroke.Thickness = 2
+UIStroke.Color = Color3.new(1, 1, 1)
+UIStroke.Transparency = 0.8
+UIStroke.Parent = MainFrame
+
+-- Minimize Button (The "Close" button)
+CloseBtn.Name = "CloseBtn"
+CloseBtn.Parent = MainFrame
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+CloseBtn.Text = "X"
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.TextSize = 18
+local BtnCorner = Instance.new("UICorner", CloseBtn)
+BtnCorner.CornerRadius = UDim.new(1, 0)
+
+-- Rest of UI Elements
+Title.Parent = MainFrame
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Text = "Magnetic Center"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 18
+
+SensitivitySlider.Parent = MainFrame
+SensitivitySlider.Position = UDim2.new(0.1, 0, 0.3, 0)
+SensitivitySlider.Size = UDim2.new(0.8, 0, 0, 30)
+SensitivitySlider.PlaceholderText = "Sensitivity (0.1 - 1)"
+SensitivitySlider.Text = tostring(_G.Sensitivity)
+
+BoxSizeSlider.Parent = MainFrame
+BoxSizeSlider.Position = UDim2.new(0.1, 0, 0.5, 0)
+BoxSizeSlider.Size = UDim2.new(0.8, 0, 0, 30)
+BoxSizeSlider.PlaceholderText = "Box Size (50 - 500)"
+BoxSizeSlider.Text = tostring(_G.BoxSize)
+
+-- FOV Box Visual (Fixed Visibility)
+FOVBox.Name = "FOVBox"
+FOVBox.Parent = ScreenGui
+FOVBox.AnchorPoint = Vector2.new(0.5, 0.5)
+FOVBox.Position = UDim2.new(0.5, 0, 0.5, 0)
+FOVBox.BackgroundTransparency = 1
+FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize)
+
+FOVStroke.Thickness = 2
+FOVStroke.Color = _G.BoxColor
+FOVStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+FOVStroke.Parent = FOVBox
+
+-- Retract Logic (Minimize to Circle)
+CloseBtn.MouseButton1Click:Connect(function()
+    _G.IsMinimized = not _G.IsMinimized
+    if _G.IsMinimized then
+        TweenService:Create(MainFrame, TweenInfo.new(0.5), {Size = UDim2.new(0, 50, 0, 50)}):Play()
+        TweenService:Create(UICorner, TweenInfo.new(0.5), {CornerRadius = UDim.new(1, 0)}):Play()
+        CloseBtn.Text = "+"
+        CloseBtn.Position = UDim2.new(0.5, -15, 0.5, -15)
+        Title.Visible = false
+        SensitivitySlider.Visible = false
+        BoxSizeSlider.Visible = false
+    else
+        TweenService:Create(MainFrame, TweenInfo.new(0.5), {Size = UDim2.new(0, 200, 0, 250)}):Play()
+        TweenService:Create(UICorner, TweenInfo.new(0.5), {CornerRadius = UDim.new(0, 15)}):Play()
+        CloseBtn.Text = "X"
+        CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+        Title.Visible = true
+        SensitivitySlider.Visible = true
+        BoxSizeSlider.Visible = true
+    end
+end)
+
+-- Updates
+SensitivitySlider.FocusLost:Connect(function()
+    local val = tonumber(SensitivitySlider.Text)
+    if val then _G.Sensitivity = math.clamp(val, 0.01, 1) end
+end)
+
+BoxSizeSlider.FocusLost:Connect(function()
+    local val = tonumber(BoxSizeSlider.Text)
+    if val then 
+        _G.BoxSize = math.clamp(val, 10, 800)
+        FOVBox.Size = UDim2.new(0, _G.BoxSize, 0, _G.BoxSize)
+    end
+end)
+
+-- Aim Logic
+local isHoldingAim = false
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == _G.AimKey or input.KeyCode == _G.AimKey then isHoldingAim = true end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == _G.AimKey or input.KeyCode == _G.AimKey then isHoldingAim = false end
+end)
+
+local function getClosestPlayerToCenter()
+    local target = nil
+    local minDistance = _G.BoxSize / 2
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                if dist < minDistance then
+                    minDistance = dist
+                    target = player.Character.HumanoidRootPart
+                end
+            end
+        end
+    end
+    return target
+end
+
+RunService.RenderStepped:Connect(function()
+    if _G.Enabled and isHoldingAim then
+        local target = getClosestPlayerToCenter()
+        if target then
+            -- Increased pull strength for better feel
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, _G.Sensitivity * 0.15) 
+        end
+    end
+end)
