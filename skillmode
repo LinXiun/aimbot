@@ -20,7 +20,9 @@ local Settings = {
     LockActive = false, 
     TeamCheck = true, 
     ClickToTarget = true,
-    SkillMode = false, 
+    SkillMode = false,
+    SmartRange = false,
+    SnapbackDelay = 0.3,
     TargetPart = "HumanoidRootPart", 
     Sensitivity = 0.5, 
     BoxSize = 200,    
@@ -31,11 +33,13 @@ local Settings = {
     MaxSkillRange = 150, 
     IsMinimized = false,
     LockedPlayer = nil,
-    IsInteracting = false, 
-    IsSwiping = false,
+    
+    -- PC Specific States
+    IsLeftClickHolding = false,
+    IsRightClickHolding = false,
     IsKeyHolding = false,
-    LastSwipeTime = 0, 
-    LastTouchPos = Vector2.new(0,0),
+    LastMouseMovementTime = 0,
+    
     BoxTimer = 0,
     SkillHotkeys = {
         [Enum.KeyCode.One] = true, [Enum.KeyCode.Two] = true, [Enum.KeyCode.Three] = true, [Enum.KeyCode.Four] = true,
@@ -43,7 +47,7 @@ local Settings = {
     }
 }
 
--- 3. GUI CREATION
+-- 3. GUI (RETAINED EXACT DESIGN)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BloxAssistGui"
 ScreenGui.ResetOnSpawn = false
@@ -66,7 +70,7 @@ TitleBar.Text = "Blox Fruits Assist"; TitleBar.TextColor3 = Color3.new(1,1,1); T
 
 local ScrollFrame = Instance.new("ScrollingFrame", MainFrame)
 ScrollFrame.Size = UDim2.new(1, 0, 1, -35); ScrollFrame.Position = UDim2.new(0, 0, 0, 35); ScrollFrame.BackgroundTransparency = 1; ScrollFrame.ScrollBarThickness = 2
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 350)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 420)
 local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
 UIListLayout.Padding = UDim.new(0, 5); UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
@@ -81,16 +85,27 @@ FOVStroke.Thickness = 2; FOVStroke.Color = Settings.BoxColor; FOVStroke.Transpar
 -- 4. UTILITY FUNCTIONS
 local function ShowBoxPulse() Settings.BoxTimer = tick() + 2 end
 
--- NEW: PVP STATUS CHECK
 local function isPvpEnabled(player)
     if not player or not player.Character then return false end
-    -- Blox Fruits specific PvP BoolValue check
     local pvpValue = player.Character:FindFirstChild("pvp") or player.Character:FindFirstChild("Pvp")
-    if pvpValue and pvpValue:IsA("BoolValue") then
-        return pvpValue.Value == true
-    end
-    -- Fallback: If no pvp value is found, we assume they might be hit-able or in a different game
+    if pvpValue and pvpValue:IsA("BoolValue") then return pvpValue.Value == true end
     return true 
+end
+
+local function getSmartWeaponRange()
+    local char = LocalPlayer.Character
+    if char then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            local tt = tool.ToolTip or ""
+            if tt == "Melee" then return 85
+            elseif tt == "Sword" then return 175
+            elseif tt == "Blox Fruit" then return 450
+            elseif tt == "Gun" then return 650
+            end
+        end
+    end
+    return nil
 end
 
 local function handleHold(btn, callback)
@@ -100,12 +115,12 @@ local function handleHold(btn, callback)
 end
 
 local function createControl(text, parent)
-    local frame = Instance.new("Frame", parent); frame.Size = UDim2.new(0.9, 0, 0, 30); frame.BackgroundTransparency = 1
-    local label = Instance.new("TextLabel", frame); label.Size = UDim2.new(0.4, 0, 1, 0); label.Text = text; label.TextColor3 = Color3.new(1,1,1); label.BackgroundTransparency = 1; label.TextScaled = true
-    local m = Instance.new("TextButton", frame); m.Size = UDim2.new(0.2, 0, 0.8, 0); m.Position = UDim2.new(0.45, 0, 0.1, 0); m.Text = "-"
-    local p = Instance.new("TextButton", frame); p.Size = UDim2.new(0.2, 0, 0.8, 0); p.Position = UDim2.new(0.7, 0, 0.1, 0); p.Text = "+"
+    local frame = Instance.new("Frame", parent); frame.Size = UDim2.new(0.9, 0, 0, 40); frame.BackgroundTransparency = 1
+    local label = Instance.new("TextLabel", frame); label.Size = UDim2.new(1, 0, 0.5, 0); label.Text = text; label.TextColor3 = Color3.new(1,1,1); label.BackgroundTransparency = 1; label.TextScaled = true
+    local m = Instance.new("TextButton", frame); m.Size = UDim2.new(0.4, 0, 0.4, 0); m.Position = UDim2.new(0.05, 0, 0.5, 0); m.Text = "-"
+    local p = Instance.new("TextButton", frame); p.Size = UDim2.new(0.4, 0, 0.4, 0); p.Position = UDim2.new(0.55, 0, 0.5, 0); p.Text = "+"
     Instance.new("UICorner", m); Instance.new("UICorner", p)
-    return m, p
+    return m, p, label
 end
 
 local function createToggle(text, parent, default)
@@ -115,8 +130,10 @@ local function createToggle(text, parent, default)
 end
 
 -- 5. BUILD CONTROLS
-local sM, sP = createControl("Sens", ScrollFrame)
-local rM, rP = createControl("Skill Rng", ScrollFrame)
+local sM, sP, sL = createControl("Sens: "..Settings.Sensitivity, ScrollFrame)
+local rM, rP, rL = createControl("Range: "..Settings.MaxSkillRange, ScrollFrame)
+local dM, dP, dL = createControl("Snap: "..Settings.SnapbackDelay.."s", ScrollFrame)
+local SmartBtn = createToggle("Smart Range: OFF", ScrollFrame, false)
 local SkillBtn = createToggle("Skill Mode: OFF", ScrollFrame, false)
 local LockBtn = createToggle("Lock: OFF", ScrollFrame, false)
 local ClickBtn = createToggle("Click Target: ON", ScrollFrame, true)
@@ -140,7 +157,7 @@ local function getClosestPlayerToCharacter(maxDistance)
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
             if Settings.TeamCheck and p.Team == LocalPlayer.Team then continue end
-            if not isPvpEnabled(p) then continue end -- Added PvP Check
+            if not isPvpEnabled(p) then continue end
             local dist = (p.Character.HumanoidRootPart.Position - myChar.HumanoidRootPart.Position).Magnitude
             if dist <= shortestDist then shortestDist = dist; closest = p end
         end
@@ -148,26 +165,26 @@ local function getClosestPlayerToCharacter(maxDistance)
     return closest
 end
 
-handleHold(sM, function() Settings.Sensitivity = math.max(0.01, Settings.Sensitivity - 0.05) end)
-handleHold(sP, function() Settings.Sensitivity = math.min(5, Settings.Sensitivity + 0.05) end)
-handleHold(rM, function() 
-    Settings.MaxSkillRange = math.max(10, Settings.MaxSkillRange - 5) 
-    FOVBox.Size = UDim2.new(0, Settings.MaxSkillRange * 2, 0, Settings.MaxSkillRange * 2)
-end)
-handleHold(rP, function() 
-    Settings.MaxSkillRange = math.min(1000, Settings.MaxSkillRange + 5) 
-    FOVBox.Size = UDim2.new(0, Settings.MaxSkillRange * 2, 0, Settings.MaxSkillRange * 2)
-end)
+handleHold(sM, function() Settings.Sensitivity = math.max(0.01, math.floor((Settings.Sensitivity - 0.05)*100)/100) sL.Text = "Sens: "..Settings.Sensitivity end)
+handleHold(sP, function() Settings.Sensitivity = math.min(5, math.floor((Settings.Sensitivity + 0.05)*100)/100) sL.Text = "Sens: "..Settings.Sensitivity end)
+handleHold(rM, function() if not Settings.SmartRange then Settings.MaxSkillRange = math.max(10, Settings.MaxSkillRange - 5) rL.Text = "Range: "..Settings.MaxSkillRange end end)
+handleHold(rP, function() if not Settings.SmartRange then Settings.MaxSkillRange = math.min(1500, Settings.MaxSkillRange + 5) rL.Text = "Range: "..Settings.MaxSkillRange end end)
+handleHold(dM, function() Settings.SnapbackDelay = math.max(0, math.floor((Settings.SnapbackDelay - 0.05)*100)/100) dL.Text = "Snap: "..Settings.SnapbackDelay.."s" end)
+handleHold(dP, function() Settings.SnapbackDelay = math.min(2, math.floor((Settings.SnapbackDelay + 0.05)*100)/100) dL.Text = "Snap: "..Settings.SnapbackDelay.."s" end)
 
 local function UpdateUI()
+    SmartBtn.Text = Settings.SmartRange and "Smart Range: ON" or "Smart Range: OFF"
+    SmartBtn.BackgroundColor3 = Settings.SmartRange and Color3.fromRGB(0, 150, 150) or Color3.fromRGB(50, 50, 50)
     SkillBtn.Text = Settings.SkillMode and "Skill Mode: ON" or "Skill Mode: OFF"
     SkillBtn.BackgroundColor3 = Settings.SkillMode and Color3.fromRGB(150, 0, 150) or Color3.fromRGB(50, 50, 50)
     LockBtn.Text = (not Settings.SkillMode and Settings.LockActive) and "Lock: ON" or (Settings.SkillMode and "Lock: DISABLED" or "Lock: OFF")
     LockBtn.BackgroundColor3 = (not Settings.SkillMode and Settings.LockActive) and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
     ClickBtn.Text = (not Settings.SkillMode and Settings.ClickToTarget) and "Click Target: ON" or (Settings.SkillMode and "Click Target: DISABLED" or "Click Target: OFF")
     ClickBtn.BackgroundColor3 = (not Settings.SkillMode and Settings.ClickToTarget) and Color3.fromRGB(150, 150, 0) or Color3.fromRGB(50, 50, 50)
+    rL.Text = Settings.SmartRange and "Range: AUTO" or "Range: "..Settings.MaxSkillRange
 end
 
+SmartBtn.MouseButton1Click:Connect(function() Settings.SmartRange = not Settings.SmartRange; UpdateUI() end)
 SkillBtn.MouseButton1Click:Connect(function() Settings.SkillMode = not Settings.SkillMode; if Settings.SkillMode then Settings.LockActive = false; Settings.LockedPlayer = nil end; UpdateUI() end)
 LockBtn.MouseButton1Click:Connect(function() if not Settings.SkillMode then Settings.LockActive = not Settings.LockActive; UpdateUI() end end)
 ClickBtn.MouseButton1Click:Connect(function() if not Settings.SkillMode then Settings.ClickToTarget = not Settings.ClickToTarget; if not Settings.ClickToTarget then Settings.LockedPlayer = nil end UpdateUI() end end)
@@ -179,18 +196,40 @@ CloseBtn.MouseButton1Click:Connect(function()
     ScrollFrame.Visible = not Settings.IsMinimized; TitleBar.Visible = not Settings.IsMinimized; CloseBtn.Text = Settings.IsMinimized and "+" or "X"
 end)
 
--- 7. MAIN LOOP
+-- 7. MAIN LOOP (PC OPTIMIZED SNAPBACK)
 RunService.RenderStepped:Connect(function()
     if not Camera then Camera = workspace.CurrentCamera end
+    
+    if Settings.SmartRange and Settings.SkillMode then
+        local dynamicRange = getSmartWeaponRange()
+        if dynamicRange then Settings.MaxSkillRange = dynamicRange end
+    end
+    
     local invCenter = Vector2.new(Camera.ViewportSize.X/2 + Settings.BoxOffsetY, Camera.ViewportSize.Y/2 + Settings.BoxOffsetX)
     FOVBox.Position = UDim2.new(0, invCenter.X, 0, invCenter.Y)
+    FOVBox.Size = UDim2.new(0, Settings.MaxSkillRange * 2, 0, Settings.MaxSkillRange * 2)
     FOVStroke.Transparency = tick() > Settings.BoxTimer and 1 or 0
+
+    -- PC LOGIC: SNAPBACK DETERMINATION
+    local timeSinceMouseMoved = tick() - Settings.LastMouseMovementTime
+    local isActivelySwiping = Settings.IsRightClickHolding and (timeSinceMouseMoved < 0.05)
+    local isAllowedToAim = false
+
+    -- Aiming condition for PC:
+    -- 1. Must be holding Left Click OR a Skill Hotkey
+    -- 2. AND we are NOT moving the camera with Right-Click
+    -- 3. AND the delay time has passed since the last mouse flick
+    if (Settings.IsLeftClickHolding or Settings.IsKeyHolding) then
+        if not isActivelySwiping and timeSinceMouseMoved >= Settings.SnapbackDelay then
+            isAllowedToAim = true
+        end
+    end
 
     if Settings.SkillMode then
         local target = getClosestPlayerToCharacter(Settings.MaxSkillRange)
         if target and target.Character then
             TargetHighlight.Adornee = target.Character; TargetHighlight.Enabled = true
-            if (Settings.IsInteracting or Settings.IsKeyHolding) and not Settings.IsSwiping then
+            if isAllowedToAim then
                 local part = target.Character:FindFirstChild(Settings.TargetPart) or target.Character:FindFirstChild("HumanoidRootPart")
                 if part then
                     Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, part.Position), Settings.Sensitivity * 0.3)
@@ -198,11 +237,7 @@ RunService.RenderStepped:Connect(function()
             end
         else TargetHighlight.Enabled = false end
     else
-        -- Logic for checking if LockedPlayer still has PvP on
-        if Settings.LockedPlayer and not isPvpEnabled(Settings.LockedPlayer) then
-            Settings.LockedPlayer = nil
-        end
-
+        if Settings.LockedPlayer and not isPvpEnabled(Settings.LockedPlayer) then Settings.LockedPlayer = nil end
         local actualTarget = Settings.LockedPlayer or nil
         TargetHighlight.Adornee = actualTarget and actualTarget.Character or nil; TargetHighlight.Enabled = (actualTarget ~= nil)
         
@@ -214,7 +249,7 @@ RunService.RenderStepped:Connect(function()
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                     if Settings.TeamCheck and p.Team == LocalPlayer.Team then continue end
-                    if not isPvpEnabled(p) then continue end -- Added PvP Check to FOV Lock
+                    if not isPvpEnabled(p) then continue end
                     local pos, onS = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
                     if onS then
                         local d = (Vector2.new(pos.X, pos.Y) - invCenter).Magnitude
@@ -223,47 +258,68 @@ RunService.RenderStepped:Connect(function()
                 end
             end
         end
-        if aimPart and not Settings.IsSwiping then
+        if aimPart and isAllowedToAim then
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, aimPart.Position), Settings.Sensitivity * 0.15)
         end
     end
 end)
 
--- 8. INPUTS
+-- 8. INPUTS (PC MOUSE DETECTION)
 UserInputService.InputBegan:Connect(function(i, g)
-    if Settings.SkillHotkeys[i.KeyCode] then Settings.IsKeyHolding = true end
+    -- Skill Key Detection
+    if Settings.SkillHotkeys[i.KeyCode] then 
+        Settings.IsKeyHolding = true 
+        Settings.LastMouseMovementTime = 0 -- RESET: Force instant snap on Z,X,C,V
+    end
+    
     if g then return end
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        Settings.IsInteracting = true; Settings.IsSwiping = false; Settings.LastTouchPos = Vector2.new(i.Position.X, i.Position.Y)
+    
+    -- Right Click (Swiping/Camera control)
+    if i.UserInputType == Enum.UserInputType.MouseButton2 then
+        Settings.IsRightClickHolding = true
+    end
+
+    -- Left Click (Aim trigger)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        Settings.IsLeftClickHolding = true
+        Settings.LastMouseMovementTime = 0 -- RESET: Force instant snap on Left Click
     end
 end)
 
 UserInputService.InputChanged:Connect(function(i)
-    if Settings.IsInteracting and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-        local currentPos = Vector2.new(i.Position.X, i.Position.Y)
-        if (currentPos - Settings.LastTouchPos).Magnitude > 10 then Settings.IsSwiping = true; Settings.LastSwipeTime = tick(); Settings.LastTouchPos = currentPos end
+    -- Mouse movement detection while Right Click is held
+    if i.UserInputType == Enum.UserInputType.MouseMovement then
+        if Settings.IsRightClickHolding then
+            Settings.LastMouseMovementTime = tick() -- Keeps updating while you move the camera
+        end
     end
 end)
 
 UserInputService.InputEnded:Connect(function(i, g)
     if Settings.SkillHotkeys[i.KeyCode] then Settings.IsKeyHolding = false end
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        if Settings.ClickToTarget and not Settings.SkillMode and not Settings.IsSwiping and not g then
-            local closest, shortDist = nil, 150 
+    
+    if i.UserInputType == Enum.UserInputType.MouseButton2 then
+        Settings.IsRightClickHolding = false
+    end
+
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        -- Handle Click-to-Target (PC Version)
+        if Settings.ClickToTarget and not Settings.SkillMode and not g then
+            local closest, shortDist = nil, 100 
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    if not isPvpEnabled(p) then continue end -- Added PvP Check to Click Lock
+                    if not isPvpEnabled(p) then continue end
                     local sP, onS = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
-                    if onS and (Vector2.new(sP.X, sP.Y) - Vector2.new(i.Position.X, i.Position.Y)).Magnitude < shortDist then closest = p end
+                    if onS and (Vector2.new(sP.X, sP.Y) - UserInputService:GetMouseLocation()).Magnitude < shortDist then closest = p end
                 end
             end
             Settings.LockedPlayer = closest
         end
-        Settings.IsInteracting = false; Settings.IsSwiping = false
+        Settings.IsLeftClickHolding = false
     end
 end)
 
--- 9. METATABLE HOOKS
+-- 9. METATABLE HOOKS (RETAINED)
 pcall(function()
     local mt = getrawmetatable(game); setreadonly(mt, false); local oldI = mt.__index; local oldN = mt.__namecall
     mt.__index = newcclosure(function(t, k)
