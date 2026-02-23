@@ -1,12 +1,18 @@
--- 1. CLEANUP
-local function Cleanup()
-    local old = game.CoreGui:FindFirstChild("BloxAssistGui") or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("BloxAssistGui")
-    if old then old:Destroy() end
-    local oldHigh = game.CoreGui:FindFirstChild("AssistHighlight")
-    if oldHigh then oldHigh:Destroy() end
+-- 1. SAFE INITIALIZATION
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then return end
+
+local function GetGuiParent()
+    if gethui then return gethui() end
+    local success, coregui = pcall(function() return game:GetService("CoreGui") end)
+    if success and coregui then return coregui end
+    return LocalPlayer:WaitForChild("PlayerGui")
 end
-Cleanup()
-_G.BloxAssistLoaded = true
+
+-- CLEANUP OLD GUI
+local parent = GetGuiParent()
+if parent:FindFirstChild("BloxAssistGui") then parent.BloxAssistGui:Destroy() end
 
 -- 2. SETTINGS
 local Settings = {
@@ -15,86 +21,83 @@ local Settings = {
     TeamCheck = true, 
     ClickToTarget = true,
     SkillMode = false, 
-    TargetPart = "HumanoidRootPart", -- Blox Fruits is better with RootPart for skills
+    TargetPart = "HumanoidRootPart", 
     Sensitivity = 0.5, 
     BoxSize = 200,    
     BoxColor = Color3.fromRGB(0, 255, 255),
     BoxOffsetX = 0, 
     BoxOffsetY = 0,
     HighlightAlpha = 0.5, 
-    MaxSkillRange = 150, -- Optimized for Blox Fruit mid-range
+    MaxSkillRange = 150, 
     IsMinimized = false,
     LockedPlayer = nil,
-    TouchStartPos = Vector2.new(0,0),
-    LastTouchPos = Vector2.new(0,0),
     IsInteracting = false, 
     IsSwiping = false,
+    IsKeyHolding = false,
     LastSwipeTime = 0, 
-    CurrentSkillTarget = nil,
-    BoxTimer = 0
+    LastTouchPos = Vector2.new(0,0),
+    BoxTimer = 0,
+    SkillHotkeys = {
+        [Enum.KeyCode.One] = true, [Enum.KeyCode.Two] = true, [Enum.KeyCode.Three] = true, [Enum.KeyCode.Four] = true,
+        [Enum.KeyCode.Z] = true, [Enum.KeyCode.X] = true, [Enum.KeyCode.C] = true, [Enum.KeyCode.V] = true, [Enum.KeyCode.F] = true
+    }
 }
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
-
--- 3. NEAREST PLAYER (RANGE SENSITIVE)
-local function getClosestPlayerToCharacter(maxDistance)
-    local closest, shortestDist = nil, maxDistance
-    local myChar = LocalPlayer.Character
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
-    
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-            if Settings.TeamCheck and p.Team == LocalPlayer.Team then continue end
-            local dist = (p.Character.HumanoidRootPart.Position - myChar.HumanoidRootPart.Position).Magnitude
-            if dist <= shortestDist then 
-                shortestDist = dist
-                closest = p 
-            end
-        end
-    end
-    return closest
-end
-
--- 4. GUI CONSTRUCTION
+-- 3. GUI CREATION
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BloxAssistGui"
 ScreenGui.ResetOnSpawn = false
-local success, err = pcall(function() ScreenGui.Parent = game.CoreGui end)
-if not success then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = parent
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-local UICorner = Instance.new("UICorner", MainFrame); UICorner.CornerRadius = UDim.new(0, 10)
-local UIStroke = Instance.new("UIStroke", MainFrame); UIStroke.Thickness = 1.5; UIStroke.Color = Color3.new(1, 1, 1)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BackgroundTransparency = 0.3
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainFrame.Size = UDim2.new(0, 160, 0, 220)
+MainFrame.Active = true
+MainFrame.Draggable = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UIStroke", MainFrame).Color = Color3.new(1, 1, 1)
+
 local TitleBar = Instance.new("TextLabel", MainFrame)
-local ScrollFrame = Instance.new("ScrollingFrame", MainFrame)
-local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
-local CloseBtn = Instance.new("TextButton", MainFrame)
-
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15); MainFrame.BackgroundTransparency = 0.3
-MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0); MainFrame.Size = UDim2.new(0, 160, 0, 220)
-MainFrame.Active = true; MainFrame.Draggable = true
-
 TitleBar.Size = UDim2.new(1, -35, 0, 30); TitleBar.Position = UDim2.new(0, 5, 0, 0); TitleBar.BackgroundTransparency = 1
 TitleBar.Text = "Blox Fruits Assist"; TitleBar.TextColor3 = Color3.new(1,1,1); TitleBar.Font = Enum.Font.GothamBold; TitleBar.TextXAlignment = Enum.TextXAlignment.Left
 
+local ScrollFrame = Instance.new("ScrollingFrame", MainFrame)
 ScrollFrame.Size = UDim2.new(1, 0, 1, -35); ScrollFrame.Position = UDim2.new(0, 0, 0, 35); ScrollFrame.BackgroundTransparency = 1; ScrollFrame.ScrollBarThickness = 2
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 500); ScrollFrame.BorderSizePixel = 0
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder; UIListLayout.Padding = UDim.new(0, 5); UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 350)
+local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
+UIListLayout.Padding = UDim.new(0, 5); UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local CloseBtn = Instance.new("TextButton", MainFrame)
+CloseBtn.Size = UDim2.new(0, 25, 0, 25); CloseBtn.Position = UDim2.new(1, -30, 0, 2); CloseBtn.Text = "X"; CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
 
 local FOVBox = Instance.new("Frame", ScreenGui); local FOVStroke = Instance.new("UIStroke", FOVBox)
 FOVBox.AnchorPoint = Vector2.new(0.5, 0.5); FOVBox.BackgroundTransparency = 1; FOVBox.Size = UDim2.new(0, Settings.MaxSkillRange * 2, 0, Settings.MaxSkillRange * 2)
 FOVStroke.Thickness = 2; FOVStroke.Color = Settings.BoxColor; FOVStroke.Transparency = 1 
 
-local TargetHighlight = Instance.new("Highlight", game.CoreGui)
-TargetHighlight.Name = "AssistHighlight"; TargetHighlight.FillTransparency = Settings.HighlightAlpha; TargetHighlight.OutlineColor = Settings.BoxColor
+-- 4. UTILITY FUNCTIONS
+local function ShowBoxPulse() Settings.BoxTimer = tick() + 2 end
 
-local function ShowBoxPulse() Settings.BoxTimer = tick() + 2; FOVStroke.Transparency = 0 end
+-- NEW: PVP STATUS CHECK
+local function isPvpEnabled(player)
+    if not player or not player.Character then return false end
+    -- Blox Fruits specific PvP BoolValue check
+    local pvpValue = player.Character:FindFirstChild("pvp") or player.Character:FindFirstChild("Pvp")
+    if pvpValue and pvpValue:IsA("BoolValue") then
+        return pvpValue.Value == true
+    end
+    -- Fallback: If no pvp value is found, we assume they might be hit-able or in a different game
+    return true 
+end
+
+local function handleHold(btn, callback)
+    local h = false
+    btn.MouseButton1Down:Connect(function() h = true while h do ShowBoxPulse(); callback(); task.wait(0.05) end end)
+    btn.MouseButton1Up:Connect(function() h = false end); btn.MouseLeave:Connect(function() h = false end)
+end
 
 local function createControl(text, parent)
     local frame = Instance.new("Frame", parent); frame.Size = UDim2.new(0.9, 0, 0, 30); frame.BackgroundTransparency = 1
@@ -111,19 +114,38 @@ local function createToggle(text, parent, default)
     return btn
 end
 
+-- 5. BUILD CONTROLS
 local sM, sP = createControl("Sens", ScrollFrame)
 local rM, rP = createControl("Skill Rng", ScrollFrame)
-local xM, xP = createControl("Move Y", ScrollFrame)
-local yM, yP = createControl("Move X", ScrollFrame)
 local SkillBtn = createToggle("Skill Mode: OFF", ScrollFrame, false)
 local LockBtn = createToggle("Lock: OFF", ScrollFrame, false)
 local ClickBtn = createToggle("Click Target: ON", ScrollFrame, true)
 local TeamBtn = createToggle("Team Check: ON", ScrollFrame, true)
 
-local function handleHold(btn, callback)
-    local h = false
-    btn.MouseButton1Down:Connect(function() h = true while h do ShowBoxPulse(); callback(); task.wait(0.03) end end)
-    btn.MouseButton1Up:Connect(function() h = false end); btn.MouseLeave:Connect(function() h = false end)
+-- 6. LOGIC & AIMING
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+local TargetHighlight = Instance.new("Highlight")
+TargetHighlight.Name = "AssistHighlight"; TargetHighlight.FillTransparency = Settings.HighlightAlpha; TargetHighlight.OutlineColor = Settings.BoxColor
+TargetHighlight.Parent = GetGuiParent()
+
+local function getClosestPlayerToCharacter(maxDistance)
+    local closest, shortestDist = nil, maxDistance
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+            if Settings.TeamCheck and p.Team == LocalPlayer.Team then continue end
+            if not isPvpEnabled(p) then continue end -- Added PvP Check
+            local dist = (p.Character.HumanoidRootPart.Position - myChar.HumanoidRootPart.Position).Magnitude
+            if dist <= shortestDist then shortestDist = dist; closest = p end
+        end
+    end
+    return closest
 end
 
 handleHold(sM, function() Settings.Sensitivity = math.max(0.01, Settings.Sensitivity - 0.05) end)
@@ -140,139 +162,115 @@ end)
 local function UpdateUI()
     SkillBtn.Text = Settings.SkillMode and "Skill Mode: ON" or "Skill Mode: OFF"
     SkillBtn.BackgroundColor3 = Settings.SkillMode and Color3.fromRGB(150, 0, 150) or Color3.fromRGB(50, 50, 50)
-    
-    if Settings.SkillMode then
-        LockBtn.Text = "Lock: DISABLED"; LockBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-        ClickBtn.Text = "Click Target: DISABLED"; ClickBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    else
-        LockBtn.Text = Settings.LockActive and "Lock: ON" or "Lock: OFF"
-        LockBtn.BackgroundColor3 = Settings.LockActive and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
-        ClickBtn.Text = Settings.ClickToTarget and "Click Target: ON" or "Click Target: OFF"
-        ClickBtn.BackgroundColor3 = Settings.ClickToTarget and Color3.fromRGB(150, 150, 0) or Color3.fromRGB(50, 50, 50)
-    end
+    LockBtn.Text = (not Settings.SkillMode and Settings.LockActive) and "Lock: ON" or (Settings.SkillMode and "Lock: DISABLED" or "Lock: OFF")
+    LockBtn.BackgroundColor3 = (not Settings.SkillMode and Settings.LockActive) and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+    ClickBtn.Text = (not Settings.SkillMode and Settings.ClickToTarget) and "Click Target: ON" or (Settings.SkillMode and "Click Target: DISABLED" or "Click Target: OFF")
+    ClickBtn.BackgroundColor3 = (not Settings.SkillMode and Settings.ClickToTarget) and Color3.fromRGB(150, 150, 0) or Color3.fromRGB(50, 50, 50)
 end
 
-SkillBtn.MouseButton1Click:Connect(function() 
-    Settings.SkillMode = not Settings.SkillMode
-    if Settings.SkillMode then Settings.LockActive = false; Settings.ClickToTarget = false; Settings.LockedPlayer = nil end 
-    UpdateUI() 
-end)
-
+SkillBtn.MouseButton1Click:Connect(function() Settings.SkillMode = not Settings.SkillMode; if Settings.SkillMode then Settings.LockActive = false; Settings.LockedPlayer = nil end; UpdateUI() end)
 LockBtn.MouseButton1Click:Connect(function() if not Settings.SkillMode then Settings.LockActive = not Settings.LockActive; UpdateUI() end end)
 ClickBtn.MouseButton1Click:Connect(function() if not Settings.SkillMode then Settings.ClickToTarget = not Settings.ClickToTarget; if not Settings.ClickToTarget then Settings.LockedPlayer = nil end UpdateUI() end end)
 TeamBtn.MouseButton1Click:Connect(function() Settings.TeamCheck = not Settings.TeamCheck; TeamBtn.Text = Settings.TeamCheck and "Team Check: ON" or "Team Check: OFF"; TeamBtn.BackgroundColor3 = Settings.TeamCheck and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(50, 50, 50) end)
 
-CloseBtn.Size = UDim2.new(0, 25, 0, 25); CloseBtn.Position = UDim2.new(1, -30, 0, 2); CloseBtn.Text = "X"; CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
 CloseBtn.MouseButton1Click:Connect(function()
     Settings.IsMinimized = not Settings.IsMinimized
-    local ts = Settings.IsMinimized and UDim2.new(0, 50, 0, 30) or UDim2.new(0, 160, 0, 220)
-    TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = ts}):Play()
+    TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = Settings.IsMinimized and UDim2.new(0, 50, 0, 30) or UDim2.new(0, 160, 0, 220)}):Play()
     ScrollFrame.Visible = not Settings.IsMinimized; TitleBar.Visible = not Settings.IsMinimized; CloseBtn.Text = Settings.IsMinimized and "+" or "X"
 end)
 
--- 5. MAIN RENDER LOOP
+-- 7. MAIN LOOP
 RunService.RenderStepped:Connect(function()
+    if not Camera then Camera = workspace.CurrentCamera end
     local invCenter = Vector2.new(Camera.ViewportSize.X/2 + Settings.BoxOffsetY, Camera.ViewportSize.Y/2 + Settings.BoxOffsetX)
     FOVBox.Position = UDim2.new(0, invCenter.X, 0, invCenter.Y)
-    if tick() > Settings.BoxTimer then FOVStroke.Transparency = 1 end
+    FOVStroke.Transparency = tick() > Settings.BoxTimer and 1 or 0
 
     if Settings.SkillMode then
-        Settings.CurrentSkillTarget = getClosestPlayerToCharacter(Settings.MaxSkillRange)
-        local target = Settings.CurrentSkillTarget
+        local target = getClosestPlayerToCharacter(Settings.MaxSkillRange)
         if target and target.Character then
             TargetHighlight.Adornee = target.Character; TargetHighlight.Enabled = true
-            local timeSinceLastMove = tick() - Settings.LastSwipeTime
-            if Settings.IsInteracting and (not Settings.IsSwiping or timeSinceLastMove > 0.3) then
+            if (Settings.IsInteracting or Settings.IsKeyHolding) and not Settings.IsSwiping then
                 local part = target.Character:FindFirstChild(Settings.TargetPart) or target.Character:FindFirstChild("HumanoidRootPart")
                 if part then
-                    local worldOffset = Vector3.new(Settings.BoxOffsetY * -0.05, Settings.BoxOffsetX * -0.05, 0)
-                    local lookAt = CFrame.lookAt(Camera.CFrame.Position, part.Position + worldOffset)
-                    Camera.CFrame = Camera.CFrame:Lerp(lookAt, Settings.Sensitivity * 0.3)
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, part.Position), Settings.Sensitivity * 0.3)
                 end
             end
         else TargetHighlight.Enabled = false end
     else
-        local actualTarget = (Settings.ClickToTarget and Settings.LockedPlayer) and Settings.LockedPlayer or nil
-        TargetHighlight.Adornee = actualTarget and actualTarget.Character or nil
-        TargetHighlight.Enabled = (actualTarget ~= nil)
+        -- Logic for checking if LockedPlayer still has PvP on
+        if Settings.LockedPlayer and not isPvpEnabled(Settings.LockedPlayer) then
+            Settings.LockedPlayer = nil
+        end
+
+        local actualTarget = Settings.LockedPlayer or nil
+        TargetHighlight.Adornee = actualTarget and actualTarget.Character or nil; TargetHighlight.Enabled = (actualTarget ~= nil)
         
-        if Settings.Enabled and not Settings.IsSwiping then
-            local targetPart = nil
-            if actualTarget then
-                targetPart = actualTarget.Character:FindFirstChild(Settings.TargetPart) or actualTarget.Character:FindFirstChild("HumanoidRootPart")
-            elseif Settings.LockActive then
-                local minDist = Settings.BoxSize / 2
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-                        if Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
-                        local part = player.Character:FindFirstChild(Settings.TargetPart) or player.Character:FindFirstChild("HumanoidRootPart")
-                        if part then
-                            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                            if onScreen then
-                                local d = (Vector2.new(pos.X, pos.Y) - invCenter).Magnitude
-                                if d < minDist then minDist = d; targetPart = part end
-                            end
-                        end
+        local aimPart = nil
+        if actualTarget then
+            aimPart = actualTarget.Character:FindFirstChild(Settings.TargetPart) or actualTarget.Character:FindFirstChild("HumanoidRootPart")
+        elseif Settings.LockActive then
+            local minDist = Settings.BoxSize / 2
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    if Settings.TeamCheck and p.Team == LocalPlayer.Team then continue end
+                    if not isPvpEnabled(p) then continue end -- Added PvP Check to FOV Lock
+                    local pos, onS = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+                    if onS then
+                        local d = (Vector2.new(pos.X, pos.Y) - invCenter).Magnitude
+                        if d < minDist then minDist = d; aimPart = p.Character.HumanoidRootPart end
                     end
                 end
             end
-            if targetPart then
-                local lookAt = CFrame.lookAt(Camera.CFrame.Position, targetPart.Position)
-                Camera.CFrame = Camera.CFrame:Lerp(lookAt, Settings.Sensitivity * (actualTarget and 0.2 or 0.1))
-            end
+        end
+        if aimPart and not Settings.IsSwiping then
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, aimPart.Position), Settings.Sensitivity * 0.15)
         end
     end
 end)
 
--- 6. INPUT PROCESSING (DEADZONE FIX)
+-- 8. INPUTS
 UserInputService.InputBegan:Connect(function(i, g)
+    if Settings.SkillHotkeys[i.KeyCode] then Settings.IsKeyHolding = true end
     if g then return end
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        Settings.TouchStartPos = Vector2.new(i.Position.X, i.Position.Y)
-        Settings.LastTouchPos = Settings.TouchStartPos
-        Settings.IsInteracting = true; Settings.IsSwiping = false; Settings.LastSwipeTime = 0 
+        Settings.IsInteracting = true; Settings.IsSwiping = false; Settings.LastTouchPos = Vector2.new(i.Position.X, i.Position.Y)
     end
 end)
 
-UserInputService.InputChanged:Connect(function(i, g)
+UserInputService.InputChanged:Connect(function(i)
     if Settings.IsInteracting and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local currentPos = Vector2.new(i.Position.X, i.Position.Y)
-        local delta = (currentPos - Settings.LastTouchPos).Magnitude
-        if delta > 10 then -- 10px Deadzone for Mobile stability
-            Settings.IsSwiping = true; Settings.LastSwipeTime = tick(); Settings.LastTouchPos = currentPos
-        end
+        if (currentPos - Settings.LastTouchPos).Magnitude > 10 then Settings.IsSwiping = true; Settings.LastSwipeTime = tick(); Settings.LastTouchPos = currentPos end
     end
 end)
 
 UserInputService.InputEnded:Connect(function(i, g)
+    if Settings.SkillHotkeys[i.KeyCode] then Settings.IsKeyHolding = false end
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        if Settings.ClickToTarget and not Settings.SkillMode and not Settings.IsSwiping then
+        if Settings.ClickToTarget and not Settings.SkillMode and not Settings.IsSwiping and not g then
             local closest, shortDist = nil, 150 
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    if not isPvpEnabled(p) then continue end -- Added PvP Check to Click Lock
                     local sP, onS = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
-                    if onS then
-                        local d = (Vector2.new(sP.X, sP.Y) - Vector2.new(i.Position.X, i.Position.Y)).Magnitude
-                        if d < shortDist then shortDist = d; closest = p end
-                    end
+                    if onS and (Vector2.new(sP.X, sP.Y) - Vector2.new(i.Position.X, i.Position.Y)).Magnitude < shortDist then closest = p end
                 end
             end
-            if closest then Settings.LockedPlayer = closest end
+            Settings.LockedPlayer = closest
         end
-        Settings.IsInteracting = false; Settings.IsSwiping = false; Settings.LastSwipeTime = 0 
+        Settings.IsInteracting = false; Settings.IsSwiping = false
     end
 end)
 
--- 7. METATABLE HOOKS
+-- 9. METATABLE HOOKS
 pcall(function()
-    local mt = getrawmetatable(game); local oldI = mt.__index; local oldN = mt.__namecall; setreadonly(mt, false)
+    local mt = getrawmetatable(game); setreadonly(mt, false); local oldI = mt.__index; local oldN = mt.__namecall
     mt.__index = newcclosure(function(t, k)
         if Settings.SkillMode and t == Mouse and (k == "Hit" or k == "Target") then
             local tar = getClosestPlayerToCharacter(Settings.MaxSkillRange)
             if tar and tar.Character and tar.Character:FindFirstChild("HumanoidRootPart") then
-                if k == "Hit" then return tar.Character.HumanoidRootPart.CFrame end
-                if k == "Target" then return tar.Character.HumanoidRootPart end
+                return k == "Hit" and tar.Character.HumanoidRootPart.CFrame or tar.Character.HumanoidRootPart
             end
         end
         return oldI(t, k)
@@ -290,5 +288,4 @@ pcall(function()
         end
         return oldN(self, ...)
     end)
-    setreadonly(mt, true)
 end)
