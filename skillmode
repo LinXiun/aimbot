@@ -38,7 +38,8 @@ local Settings = {
     IsLeftClickHolding = false,
     IsRightClickHolding = false,
     IsKeyHolding = false,
-    LastMouseMovementTime = 0,
+    IsActivelySwiping = false,
+    LastCameraMoveTick = 0, -- The true timer
     
     BoxTimer = 0,
     SkillHotkeys = {
@@ -196,7 +197,7 @@ CloseBtn.MouseButton1Click:Connect(function()
     ScrollFrame.Visible = not Settings.IsMinimized; TitleBar.Visible = not Settings.IsMinimized; CloseBtn.Text = Settings.IsMinimized and "+" or "X"
 end)
 
--- 7. MAIN LOOP (PC OPTIMIZED SNAPBACK)
+-- 7. MAIN LOOP (TRUE PC OPTIMIZED SNAPBACK)
 RunService.RenderStepped:Connect(function()
     if not Camera then Camera = workspace.CurrentCamera end
     
@@ -210,17 +211,23 @@ RunService.RenderStepped:Connect(function()
     FOVBox.Size = UDim2.new(0, Settings.MaxSkillRange * 2, 0, Settings.MaxSkillRange * 2)
     FOVStroke.Transparency = tick() > Settings.BoxTimer and 1 or 0
 
-    -- PC LOGIC: SNAPBACK DETERMINATION
-    local timeSinceMouseMoved = tick() - Settings.LastMouseMovementTime
-    local isActivelySwiping = Settings.IsRightClickHolding and (timeSinceMouseMoved < 0.05)
+    -- PC LOGIC FIX: True Delay Evaluation
+    local timeSinceMove = tick() - Settings.LastCameraMoveTick
+    
+    -- If the mouse hasn't moved in 0.1s, we are no longer "actively swiping"
+    if timeSinceMove > 0.1 then
+        Settings.IsActivelySwiping = false
+    end
+
     local isAllowedToAim = false
 
-    -- Aiming condition for PC:
-    -- 1. Must be holding Left Click OR a Skill Hotkey
-    -- 2. AND we are NOT moving the camera with Right-Click
-    -- 3. AND the delay time has passed since the last mouse flick
+    -- Evaluation Tree:
     if (Settings.IsLeftClickHolding or Settings.IsKeyHolding) then
-        if not isActivelySwiping and timeSinceMouseMoved >= Settings.SnapbackDelay then
+        if Settings.IsActivelySwiping then
+            -- 1. Right click movement completely blocks aim
+            isAllowedToAim = false
+        elseif timeSinceMove >= Settings.SnapbackDelay then
+            -- 2. Once the mouse is still, wait for slider delay
             isAllowedToAim = true
         end
     end
@@ -264,33 +271,37 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 8. INPUTS (PC MOUSE DETECTION)
+-- 8. INPUTS (STRICT TIMER MANAGEMENT)
 UserInputService.InputBegan:Connect(function(i, g)
-    -- Skill Key Detection
     if Settings.SkillHotkeys[i.KeyCode] then 
         Settings.IsKeyHolding = true 
-        Settings.LastMouseMovementTime = 0 -- RESET: Force instant snap on Z,X,C,V
+        -- Only allow instant bypass if you are NOT currently holding Right-Click
+        if not Settings.IsRightClickHolding then
+            Settings.LastCameraMoveTick = 0 
+        end
     end
     
     if g then return end
     
-    -- Right Click (Swiping/Camera control)
     if i.UserInputType == Enum.UserInputType.MouseButton2 then
         Settings.IsRightClickHolding = true
     end
 
-    -- Left Click (Aim trigger)
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
         Settings.IsLeftClickHolding = true
-        Settings.LastMouseMovementTime = 0 -- RESET: Force instant snap on Left Click
+        -- Only allow instant bypass if you are NOT currently holding Right-Click
+        if not Settings.IsRightClickHolding then
+            Settings.LastCameraMoveTick = 0 
+        end
     end
 end)
 
 UserInputService.InputChanged:Connect(function(i)
-    -- Mouse movement detection while Right Click is held
     if i.UserInputType == Enum.UserInputType.MouseMovement then
+        -- Only update the swipe timer if we are actively holding Right-Click
         if Settings.IsRightClickHolding then
-            Settings.LastMouseMovementTime = tick() -- Keeps updating while you move the camera
+            Settings.LastCameraMoveTick = tick()
+            Settings.IsActivelySwiping = true
         end
     end
 end)
@@ -300,10 +311,10 @@ UserInputService.InputEnded:Connect(function(i, g)
     
     if i.UserInputType == Enum.UserInputType.MouseButton2 then
         Settings.IsRightClickHolding = false
+        -- Note: We intentionally do NOT reset the timer here so the delay is respected even when released
     end
 
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        -- Handle Click-to-Target (PC Version)
         if Settings.ClickToTarget and not Settings.SkillMode and not g then
             local closest, shortDist = nil, 100 
             for _, p in pairs(Players:GetPlayers()) do
