@@ -1,36 +1,173 @@
--- Roblox LocalScript: Character Foot Ring
-local Player = game.Players.LocalPlayer
+-- Roblox LocalScript: Ring System with Targeting & Mobile GUI
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
--- 1. Create the Ring Part
+-- --- CONFIGURATION ---
+local RING_OFFSET = -2.9 -- Height adjustment for feet level
+local DEFAULT_SCALE = 6
+local currentScale = DEFAULT_SCALE
+
+-- --- 1. CREATE THE RING ---
 local Ring = Instance.new("Part")
 Ring.Name = "FollowRing"
-Ring.Size = Vector3.new(1, 1, 1) -- Base size, scaled by mesh
-Ring.Transparency = 0 -- Fully visible
-Ring.Color = Color3.fromRGB(255, 0, 0) -- Pure Red
+Ring.Size = Vector3.new(1, 1, 1)
+Ring.Transparency = 0
+Ring.Color = Color3.fromRGB(255, 0, 0)
 Ring.CanCollide = false
 Ring.CanQuery = false
 Ring.CanTouch = false
 Ring.CastShadow = false
-Ring.Material = Enum.Material.Neon -- Makes it glow slightly
+Ring.Material = Enum.Material.Neon
 Ring.Parent = Character
 
--- 2. Add the Ring Mesh (Torus shape)
 local Mesh = Instance.new("SpecialMesh")
 Mesh.MeshType = Enum.MeshType.FileMesh
-Mesh.MeshId = "rbxassetid://3270017" -- Standard Ring Mesh ID
-Mesh.Scale = Vector3.new(6, 6, 0.5) -- Adjust these numbers to change the ring size
+Mesh.MeshId = "rbxassetid://3270017"
+Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
 Mesh.Parent = Ring
 
--- 3. Position it at the feet
--- We offset it by -3.2 studs (average character height) to stay below view
-Ring.CFrame = RootPart.CFrame * CFrame.new(0, -3.2, 0) * CFrame.Angles(math.rad(90), 0, 0)
-
--- 4. Weld it so it moves with the player automatically
 local Weld = Instance.new("WeldConstraint")
 Weld.Part0 = Ring
 Weld.Part1 = RootPart
 Weld.Parent = Ring
+Ring.CFrame = RootPart.CFrame * CFrame.new(0, RING_OFFSET, 0) * CFrame.Angles(math.rad(90), 0, 0)
 
-print("Red ring initialized below feet level.")
+-- --- 2. THE HIGHLIGHT (TARGETING EFFECT) ---
+local TargetHighlight = Instance.new("Highlight")
+TargetHighlight.FillTransparency = 1
+TargetHighlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+TargetHighlight.OutlineTransparency = 0
+TargetHighlight.Enabled = false
+TargetHighlight.Parent = game.CoreGui -- Hidden from explorer, persistent
+
+-- --- 3. THE UI (PC/MOBILE OPTIMIZED) ---
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RingController"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+
+-- Main Container
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 200, 0, 100)
+MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.Parent = MainFrame
+
+-- Scaler (Always Visible Section)
+local ScaleFrame = Instance.new("Frame")
+ScaleFrame.Size = UDim2.new(1, 0, 0, 40)
+ScaleFrame.BackgroundTransparency = 1
+ScaleFrame.Parent = MainFrame
+
+local ScaleLabel = Instance.new("TextLabel")
+ScaleLabel.Size = UDim2.new(0.4, 0, 1, 0)
+ScaleLabel.Text = "Size:"
+ScaleLabel.TextColor3 = Color3.new(1, 1, 1)
+ScaleLabel.BackgroundTransparency = 1
+ScaleLabel.Parent = ScaleFrame
+
+local ScaleInput = Instance.new("TextBox")
+ScaleInput.Size = UDim2.new(0.5, 0, 0.7, 0)
+ScaleInput.Position = UDim2.new(0.45, 0, 0.15, 0)
+ScaleInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ScaleInput.Text = tostring(DEFAULT_SCALE)
+ScaleInput.TextColor3 = Color3.new(1, 1, 1)
+ScaleInput.Parent = ScaleFrame
+
+-- Content Section (Minimizable)
+local Content = Instance.new("Frame")
+Content.Name = "Content"
+Content.Size = UDim2.new(1, 0, 0, 60)
+Content.Position = UDim2.new(0, 0, 0, 40)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
+
+local InfoLabel = Instance.new("TextLabel")
+InfoLabel.Size = UDim2.new(1, 0, 1, 0)
+InfoLabel.Text = "Targeting Active\nPriority: Low HP > Nearest"
+InfoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+InfoLabel.TextSize = 12
+InfoLabel.BackgroundTransparency = 1
+InfoLabel.Parent = Content
+
+-- Minimize Button
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 20, 0, 20)
+MinBtn.Position = UDim2.new(1, -25, 0, 5)
+MinBtn.Text = "-"
+MinBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+MinBtn.TextColor3 = Color3.new(1, 1, 1)
+MinBtn.Parent = MainFrame
+
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	Content.Visible = not minimized
+	MainFrame.Size = minimized and UDim2.new(0, 200, 0, 40) or UDim2.new(0, 200, 0, 100)
+	MinBtn.Text = minimized and "+" or "-"
+end)
+
+-- --- 4. LOGIC & OPTIMIZATION ---
+
+-- Scaling Logic
+ScaleInput.FocusLost:Connect(function()
+	local val = tonumber(ScaleInput.Text)
+	if val then
+		currentScale = math.clamp(val, 1, 50)
+		Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
+	end
+	ScaleInput.Text = tostring(currentScale)
+end)
+
+-- Targeting Heartbeat
+RunService.Heartbeat:Connect(function()
+	local targets = {}
+	local radius = currentScale * 0.8 -- Adjusted for mesh visual scale
+	
+	for _, otherPlayer in ipairs(Players:GetPlayers()) do
+		if otherPlayer ~= Player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			local otherRoot = otherPlayer.Character.HumanoidRootPart
+			local dist = (RootPart.Position - otherRoot.Position).Magnitude
+			
+			if dist <= radius then
+				local hum = otherPlayer.Character:FindFirstChild("Humanoid")
+				if hum and hum.Health > 0 then
+					table.insert(targets, {
+						player = otherPlayer,
+						char = otherPlayer.Character,
+						health = hum.Health,
+						dist = dist
+					})
+				end
+			end
+		end
+	end
+	
+	if #targets > 0 then
+		-- Sorting: Primary = Low Health, Secondary = Distance
+		table.sort(targets, function(a, b)
+			if a.health ~= b.health then
+				return a.health < b.health
+			else
+				return a.dist < b.dist
+			end
+		end)
+		
+		local bestTarget = targets[1].char
+		TargetHighlight.Adornee = bestTarget
+		TargetHighlight.Enabled = true
+	else
+		TargetHighlight.Enabled = false
+	end
+end)
