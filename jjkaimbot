@@ -232,45 +232,44 @@ end)
 --	end
 --end)
 
-RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
+
+RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
     if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Head") then
         
-        -- 1. FORCE NOCLIP (Allows camera to go through any wall)
+        -- 1. FORCE NOCLIP (Glitch through walls)
         workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
         
         local myHeadPos = Character.Head.Position
         local enemyBodyPos = currentTarget.HumanoidRootPart.Position
-        local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyBodyPos.X, 0, enemyBodyPos.Z)).Magnitude
+        local directionAway = (myHeadPos - enemyBodyPos).Unit
 
-        -- 2. CAMERA SETTINGS
-        local baseDistance = 15 -- Standard distance
-        local retreatBuffer = 8 -- If you get closer than 8 studs, the cam moves back
+        -- 2. CAMERA THRESHOLDS
+        local idealDistance = 15 -- How far the cam wants to be
+        local minThreshold = 8   -- Move BACK if closer than this
+        local maxThreshold = 25  -- Move FORWARD if further than this
         local camHeight = 2
 
-        -- 3. CALCULATE THE TRIPOD POSITION
-        local directionAway = (myHeadPos - enemyBodyPos).Unit
-        
-        -- Only update the base position if we are far away or the camera hasn't started yet
-        if flatDist > 3 or CCTV_Position == nil then
-            CCTV_Position = myHeadPos + (directionAway * baseDistance) + Vector3.new(0, camHeight, 0)
+        -- 3. INITIAL SETUP
+        if CCTV_Position == nil then
+            CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
         end
 
-        -- 4. THE AUTO-RETREAT LOGIC
-        -- This checks if YOU are walking into the camera lens
+        -- 4. THE SMART TETHER (The "Catch-Up" and "Retreat" Logic)
         local distToCam = (myHeadPos - CCTV_Position).Magnitude
-        if distToCam < retreatBuffer then
-            -- Push the camera back so it stays at least 'retreatBuffer' studs away from you
-            CCTV_Position = myHeadPos + (directionAway * baseDistance) + Vector3.new(0, camHeight, 0)
+
+        if distToCam < minThreshold or distToCam > maxThreshold then
+            -- If you are too close OR too far, the camera relocates to the ideal spot
+            CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
         end
 
-        -- 5. APPLY VIEW (Targeting the Body)
+        -- 5. APPLY VIEW (Always looking at the Body)
         workspace.CurrentCamera.CFrame = CFrame.lookAt(CCTV_Position, enemyBodyPos)
         
     else
-        -- Restore default camera when no target exists
+        -- Restore default camera
         if workspace.CurrentCamera.CameraType == Enum.CameraType.Scriptable then
             workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-            CCTV_Position = nil -- Clear the tripod position
+            CCTV_Position = nil 
         end
     end
 end)
