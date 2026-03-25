@@ -12,6 +12,16 @@ local RootPart = Character:WaitForChild("HumanoidRootPart")
 local Hum = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
 
+-- --- CONFIGURATION ---
+local currentScale = 120 
+local aimbotEnabled = true 
+local currentTarget = nil
+-- MODIFY THIS: Change the '2' to your preferred height for normal mode
+local normalCameraHeight = 2 
+
+-- Apply the height to the normal camera immediately
+Hum.CameraOffset = Vector3.new(0, normalCameraHeight, 0)
+
 -- --- YOUR BLUE HIGHLIGHT ---
 local MyHighlight = Instance.new("Highlight")
 MyHighlight.Name = "SelfHighlight"
@@ -21,11 +31,6 @@ MyHighlight.FillTransparency = 0.5
 MyHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
 MyHighlight.OutlineTransparency = 0
 MyHighlight.Parent = Character
-
--- --- CONFIGURATION ---
-local currentScale = 120 
-local aimbotEnabled = true 
-local currentTarget = nil
 
 -- --- 1. THE FEET RING ---
 local Ring = Instance.new("Part")
@@ -147,7 +152,6 @@ RunService.Heartbeat:Connect(function()
             local char = plr.Character
             local root = char:FindFirstChild("HumanoidRootPart")
             
-            -- Targets every other player in range
             if root and char.Humanoid.Health > 0 then
                 local dist = (RootPart.Position - root.Position).Magnitude
                 if dist <= actualRadius then
@@ -165,7 +169,6 @@ RunService.Heartbeat:Connect(function()
         Outline.Adornee = currentTarget
         Outline.Enabled = true
         
-        -- Update GUI Health Text
         local hpPercent = math.floor((hum.Health / hum.MaxHealth) * 100)
         HealthDisplay.Text = hpPercent .. "%"
         HealthDisplay.TextColor3 = Color3.fromHSV(hpPercent/300, 0.8, 1)
@@ -213,8 +216,11 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
         end
         workspace.CurrentCamera.CFrame = CFrame.lookAt(CCTV_Position, enemyBodyPos)
     else
+        -- REVERT TO NORMAL MODE
         if workspace.CurrentCamera.CameraType == Enum.CameraType.Scriptable then
             workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+            -- Re-apply height offset just to be safe
+            Hum.CameraOffset = Vector3.new(0, normalCameraHeight, 0)
             CCTV_Position = nil 
         end
     end
