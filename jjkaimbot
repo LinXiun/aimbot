@@ -15,12 +15,11 @@ local Camera = workspace.CurrentCamera
 local MyHighlight = Instance.new("Highlight")
 MyHighlight.Name = "SelfHighlight"
 MyHighlight.Adornee = Character
-MyHighlight.FillColor = Color3.fromRGB(0, 150, 255) -- Bright Blue
+MyHighlight.FillColor = Color3.fromRGB(0, 150, 255) 
 MyHighlight.FillTransparency = 0.5
-MyHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- White Outline
+MyHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
 MyHighlight.OutlineTransparency = 0
 MyHighlight.Parent = Character
-
 
 -- --- CONFIGURATION ---
 local currentScale = 120
@@ -222,15 +221,14 @@ RunService.Heartbeat:Connect(function()
         end
 end)
 
-
--- --- SMART CAMERA LOCK (FIXED) ---
+-- --- SMART CAMERA & AVATAR LOCK ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
     if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Head") then
 
-        -- Force Noclip (Glitch through walls)
         workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
 
         local myHeadPos = Character.Head.Position
+        local myRootPos = RootPart.Position
         local enemyBodyPos = currentTarget.HumanoidRootPart.Position
         local directionAway = (myHeadPos - enemyBodyPos).Unit
         local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyBodyPos.X, 0, enemyBodyPos.Z)).Magnitude
@@ -239,15 +237,18 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
         local idealDistance = 15 
         local minThreshold = 8   
         local maxThreshold = 25  
-        local collisionRange = 12 -- CCTV only kicks in if you are within 12 studs of enemy
+        local collisionRange = 12 
         local camHeight = 2
 
-        -- LOGIC: Follow normally when far, Park tripod when close
+        -- 1. AVATAR LOCK (Face the enemy)
+        -- We use a Vector3 that matches your Y height so your character stays upright
+        local faceTarget = Vector3.new(enemyBodyPos.X, myRootPos.Y, enemyBodyPos.Z)
+        RootPart.CFrame = CFrame.lookAt(myRootPos, faceTarget)
+
+        -- 2. CAMERA LOGIC
         if flatDist > collisionRange then
-            -- FOLLOW MODE: Update position every frame while far away
             CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
         else
-            -- CCTV MODE: Only update tripod if you get way out of range (8-25 studs)
             if CCTV_Position == nil then
                 CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
             end
@@ -258,11 +259,9 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
             end
         end
 
-        -- Look at Body
         workspace.CurrentCamera.CFrame = CFrame.lookAt(CCTV_Position, enemyBodyPos)
 
     else
-        -- Restore default camera
         if workspace.CurrentCamera.CameraType == Enum.CameraType.Scriptable then
             workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
             CCTV_Position = nil 
