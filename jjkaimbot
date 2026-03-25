@@ -191,78 +191,84 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Targeting
+-- --- 1. THE TARGETING LOOP (With Team Check) ---
 RunService.Heartbeat:Connect(function()
-	local targets = {}
-	local visualRadius = currentScale * 0.8
-	
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-			local root = plr.Character:FindFirstChild("HumanoidRootPart")
-			if root and plr.Character.Humanoid.Health > 0 then
-				local dist = (RootPart.Position - root.Position).Magnitude
-				if dist <= visualRadius then
-					table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
-				end
-			end
-		end
-	end
-	
-	if #targets > 0 then
-		table.sort(targets, function(a, b)
-			if a.hp ~= b.hp then return a.hp < b.hp end
-			return a.dist < b.dist
-		end)
-		currentTarget = targets[1].char
-		Outline.Adornee = currentTarget
-		Outline.Enabled = true
-	else
-		currentTarget = nil
-		Outline.Enabled = false
-	end
+    local targets = {}
+    local visualRadius = currentScale * 0.8
+    
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+            local root = plr.Character:FindFirstChild("HumanoidRootPart")
+            local hum = plr.Character.Humanoid
+            
+            if root and hum.Health > 0 then
+                
+                -- [TEAM CHECK START]
+                -- Checks both official Teams and TeamColor for universal compatibility
+                local isTeammate = (plr.Team == Player.Team and plr.Team ~= nil) or (plr.TeamColor == Player.TeamColor)
+                if isTeammate then continue end 
+                -- [TEAM CHECK END]
+
+                local dist = (RootPart.Position - root.Position).Magnitude
+                if dist <= visualRadius then
+                    table.insert(targets, {
+                        char = plr.Character, 
+                        hp = hum.Health, 
+                        dist = dist,
+                        velocity = root.AssemblyLinearVelocity -- Store velocity for prediction
+                    })
+                end
+            end
+        end
+    end
+    
+    -- Sorting (Lowest HP first, then closest)
+    if #targets > 0 then
+        table.sort(targets, function(a, b)
+            if a.hp ~= b.hp then return a.hp < b.hp end
+            return a.dist < b.dist
+        end)
+        currentTarget = targets[1]
+        Outline.Adornee = currentTarget.char
+        Outline.Enabled = true
+    else
+        currentTarget = nil
+        Outline.Enabled = false
+    end
 end)
 
--- Camera Lock
--- --- THE FORCED MOBILE CAMERA PULL ---
-RunService:BindToRenderStep("MobileCameraLock", Enum.RenderPriority.Camera.Value + 1, function()
-    -- Check if Aimbot is ON and we have a Target
+-- --- 2. THE CAMERA & LEAD SHOT LOOP ---
+RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
     if aimbotEnabled and currentTarget and currentTarget.char:FindFirstChild("HumanoidRootPart") then
-        local targetRoot = currentTarget.char.HumanoidRootPart
-        local myHead = Character:FindFirstChild("Head")
+        local myPos = RootPart.Position
+        local enemyRoot = currentTarget.char.HumanoidRootPart
+        local enemyPos = enemyRoot.Position
         
-        if myHead then
-            -- CRITICAL MOBILE FIX: Force Scriptable EVERY FRAME
-            -- This stops the mobile "Touch" script from fighting back
-            workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
-            
-            local myPos = myHead.Position
-            local enemyPos = targetRoot.Position
-            
-            -- 1. Calculate the Orbit Direction
-            local dist = (myPos - enemyPos).Magnitude
-            local directionAway
-            
-            if dist > 2 then
-                directionAway = (myPos - enemyPos).Unit
-            else
-                -- If standing on them, use the current camera angle to avoid spinning
-                directionAway = -workspace.CurrentCamera.CFrame.LookVector
-            end
-            
-            -- 2. Set the View (Head Level + Distance)
-            local camDistance = 15
-            local finalCamPos = myPos + (directionAway * camDistance)
-            
-            -- 3. THE PULL: This forces the screen to face the enemy
-            workspace.CurrentCamera.CFrame = CFrame.lookAt(finalCamPos, enemyPos)
-        end
+        -- [LEAD SHOT / PREDICTION MATH]
+        -- Adjust 'leadIntensity' based on how fast projectiles are in your game
+        local leadIntensity = 0.15 
+        local predictedPos = enemyPos + (currentTarget.velocity * leadIntensity)
+        
+        -- [ORBIT CAMERA LOGIC]
+        -- Calculate direction from PREDICTED position to stay ahead of the fight
+        local directionAway = (myPos - predictedPos).Unit
+        
+        local camDistance = 15 -- Distance behind you
+        local camHeight = 5    -- Height above you
+        
+        local newCamPos = myPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
+        
+        -- Apply the Camera Transformation
+        Camera.CameraType = Enum.CameraType.Scriptable
+        Camera.CFrame = CFrame.lookAt(newCamPos, predictedPos)
     else
-        -- If no target or aimbot is OFF, let the player move their camera normally
-        if workspace.CurrentCamera.CameraType == Enum.CameraType.Scriptable then
-            workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        -- Restore default camera if no target
+        if Camera.CameraType ~= Enum.CameraType.Custom then
+            Camera.CameraType = Enum.CameraType.Custom
         end
     end
 end)
+
 
 
 
