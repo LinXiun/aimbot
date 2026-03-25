@@ -214,34 +214,35 @@ end)
 
 -- Camera Lock
 RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
-    if aimbotEnabled and currentTarget and currentTarget.char:FindFirstChild("Head") then
-        local myHeadPos = Character.Head.Position
-        local enemyHeadPos = currentTarget.char.Head.Position
+    if aimbotEnabled and currentTarget and currentTarget.char:FindFirstChild("HumanoidRootPart") then
+        -- 1. Get the Head for your position and RootPart for the enemy
+        local myHeadPos = Character:WaitForChild("Head").Position
+        local enemyBodyPos = currentTarget.char.HumanoidRootPart.Position
         
-        -- 1. CALCULATE THE ACTUAL DISTANCE
-        local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyHeadPos.X, 0, enemyHeadPos.Z)).Magnitude
+        -- 2. Calculate Distance to prevent the "Spinning" glitch
+        local dist = (myHeadPos - enemyBodyPos).Magnitude
         
-        -- 2. SAFE CHECK: ONLY CALCULATE DIRECTION IF NOT ON TOP OF THEM
+        -- 3. Calculate Direction Away (Safe Check)
         local directionAway
-        if flatDist > 1.5 then
-            -- Normal Orbiting
-            directionAway = (myHeadPos - enemyHeadPos).Unit
+        if dist > 2 then
+            -- Normal direction
+            directionAway = (myHeadPos - enemyBodyPos).Unit
         else
-            -- If too close, use the Camera's current "Look" direction 
-            -- to prevent the spinning glitch
-            directionAway = -Camera.CFrame.LookVector 
+            -- Last known direction to prevent 0-vector spinning
+            directionAway = Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z).Unit * -1
         end
         
-        -- 3. APPLY SETTINGS
-        local camDistance = 12
-        local camHeight = 0 -- Staying at head level as requested
+        -- 4. Set the Camera Position (At your head level)
+        local camDistance = 15 
+        local camHeight = 0 -- 0 keeps it perfectly level with your eyes
         
         local newCamPos = myHeadPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
         
-        -- 4. APPLY TRANSFORMATION
+        -- 5. APPLY: Position is at your head, but Looking at their Body
         Camera.CameraType = Enum.CameraType.Scriptable
-        Camera.CFrame = CFrame.lookAt(newCamPos, enemyHeadPos)
+        Camera.CFrame = CFrame.lookAt(newCamPos, enemyBodyPos)
     else
+        -- Return control to player
         if Camera.CameraType ~= Enum.CameraType.Custom then
             Camera.CameraType = Enum.CameraType.Custom
         end
