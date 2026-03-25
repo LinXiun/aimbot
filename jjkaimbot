@@ -51,18 +51,18 @@ Weld.Part1 = Ring
 Weld.C0 = CFrame.new(0, -Hum.HipHeight - 1.4, 0) * CFrame.Angles(math.rad(90), 0, 0)
 Weld.Parent = Ring
 
--- --- 2. THE STABLE GUI ---
+-- --- 3. THE SEAMLESS GUI ---
 local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "RingUI_Final"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 100 -- Ensures it's on top of game UI
+ScreenGui.DisplayOrder = 100 
 
--- ENEMY HIGHLIGHT (Moved to ScreenGui for better compatibility)
+-- ENEMY HIGHLIGHT
 local Outline = Instance.new("Highlight")
 Outline.Name = "SuperOutline"
 Outline.FillColor = Color3.fromRGB(255, 0, 0)
-Outline.FillTransparency = 0.5 
-Outline.OutlineColor = Color3.fromRGB(255, 0, 0)
+Outline.FillTransparency = 0.6 -- Slightly more transparent for "seamless" look
+Outline.OutlineColor = Color3.fromRGB(255, 255, 255) -- White outline pops more
 Outline.OutlineTransparency = 0
 Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
 Outline.Enabled = false
@@ -71,36 +71,17 @@ Outline.Parent = ScreenGui
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 200, 0, 100) 
 MainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15) -- Darker base
+MainFrame.BackgroundTransparency = 0.2 -- SEAMLESS: Glass effect
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.ClipsDescendants = true
 
--- Drag Logic
-local function makeDraggable(frame)
-    local dragging, dragStart, startPos
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-end
-makeDraggable(MainFrame)
+-- SEAMLESS: Rounded Corners for Main Frame
+local MainCorner = Instance.new("UICorner", MainFrame)
+MainCorner.CornerRadius = UDim.new(0, 10)
 
--- TOP BAR (Toggle Switch)
+-- TOP BAR (Toggle Switch Area)
 local TopBar = Instance.new("Frame", MainFrame)
 TopBar.Size = UDim2.new(1, 0, 0, 50)
 TopBar.BackgroundTransparency = 1
@@ -109,39 +90,42 @@ TopBar.ZIndex = 5
 local ToggleLabel = Instance.new("TextLabel", TopBar)
 ToggleLabel.Size = UDim2.new(0.5, 0, 0, 35)
 ToggleLabel.Position = UDim2.new(0.1, 0, 0.15, 0)
-ToggleLabel.Text = "Aimbot"
+ToggleLabel.Text = "AIMBOT" -- Uppercase for modern look
+ToggleLabel.Font = Enum.Font.GothamBold -- Modern Font
+ToggleLabel.TextSize = 14
 ToggleLabel.TextColor3 = Color3.new(1, 1, 1)
 ToggleLabel.BackgroundTransparency = 1
 ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
 ToggleLabel.ZIndex = 6
 
 local ToggleBG = Instance.new("TextButton", TopBar)
-ToggleBG.Size = UDim2.new(0, 50, 0, 25)
+ToggleBG.Size = UDim2.new(0, 45, 0, 22) -- Slightly slimmer
 ToggleBG.Position = UDim2.new(0.55, 0, 0.25, 0)
-ToggleBG.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
+ToggleBG.BackgroundColor3 = Color3.fromRGB(0, 180, 100) -- Vibrant Green
 ToggleBG.Text = ""
 ToggleBG.ZIndex = 7
 Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
 
 local ToggleKnob = Instance.new("Frame", ToggleBG)
-ToggleKnob.Size = UDim2.new(0, 21, 0, 21)
+ToggleKnob.Size = UDim2.new(0, 18, 0, 18) -- Sized to fit inside BG
 ToggleKnob.Position = UDim2.new(0.55, 0, 0.5, 0) 
 ToggleKnob.AnchorPoint = Vector2.new(0, 0.5)
 ToggleKnob.BackgroundColor3 = Color3.new(1, 1, 1)
 ToggleKnob.ZIndex = 8
 Instance.new("UICorner", ToggleKnob).CornerRadius = UDim.new(1, 0)
 
--- Minimize Button
+-- Minimize Button (Circle Style)
 local MinBtn = Instance.new("TextButton", MainFrame)
-MinBtn.Size = UDim2.new(0, 30, 0, 30)
-MinBtn.Position = UDim2.new(1, -35, 0, 10)
+MinBtn.Size = UDim2.new(0, 24, 0, 24) -- Smaller, circular
+MinBtn.Position = UDim2.new(1, -32, 0, 13)
 MinBtn.Text = "-"
+MinBtn.Font = Enum.Font.GothamBold
 MinBtn.ZIndex = 10 
-MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+MinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", MinBtn)
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(1, 0)
 
--- BOTTOM BAR (Slider)
+-- BOTTOM BAR (Slider Area)
 local SliderArea = Instance.new("Frame", MainFrame)
 SliderArea.Size = UDim2.new(1, 0, 0, 50)
 SliderArea.Position = UDim2.new(0, 0, 0, 50) 
@@ -149,27 +133,32 @@ SliderArea.BackgroundTransparency = 1
 SliderArea.ZIndex = 2
 
 local SliderLabel = Instance.new("TextLabel", SliderArea)
-SliderLabel.Size = UDim2.new(1, 0, 0, 25)
-SliderLabel.Text = "Range: " .. currentScale
-SliderLabel.TextColor3 = Color3.new(1, 1, 1)
+SliderLabel.Size = UDim2.new(1, 0, 0, 20)
+SliderLabel.Position = UDim2.new(0, 0, 0.1, 0)
+SliderLabel.Text = "RANGE: " .. currentScale
+SliderLabel.Font = Enum.Font.GothamMedium
+SliderLabel.TextSize = 12
+SliderLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 SliderLabel.BackgroundTransparency = 1
 SliderLabel.ZIndex = 3
 
 local Track = Instance.new("Frame", SliderArea)
 Track.Size = UDim2.new(0.8, 0, 0, 4)
 Track.Position = UDim2.new(0.1, 0, 0.7, 0)
-Track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Track.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 Track.BorderSizePixel = 0
 Track.ZIndex = 3
+Instance.new("UICorner", Track) -- Rounded track
 
 local Knob = Instance.new("TextButton", Track)
-Knob.Size = UDim2.new(0, 20, 0, 20)
+Knob.Size = UDim2.new(0, 16, 0, 16)
 Knob.AnchorPoint = Vector2.new(0.5, 0.5)
 Knob.Position = UDim2.new(0.3, 0, 0.5, 0)
-Knob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+Knob.BackgroundColor3 = Color3.fromRGB(0, 150, 255) -- Matches your Blue Highlight
 Knob.Text = ""
 Knob.ZIndex = 4
 Instance.new("UICorner", Knob).CornerRadius = UDim.new(1, 0)
+
 
 -- --- LOGIC ---
 
