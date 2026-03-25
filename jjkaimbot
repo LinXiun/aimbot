@@ -225,14 +225,26 @@ RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, f
         -- local myPos = RootPart.Position
         local myHeadPos = Character:WaitForChild("Head").Position
         local enemyPos = currentTarget.HumanoidRootPart.Position
+
+        local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyPos.X, 0, enemyPos.Z)).Magnitude
         
         -- 2. Calculate the direction AWAY from the enemy
         -- This ensures you stay between the camera and the enemy
-        local directionAway = (myHeadPos - enemyPos).Unit
-        
+        -- local directionAway = (myHeadPos - enemyPos).Unit
+         -- 2. SAFE CHECK: ONLY CALCULATE DIRECTION IF NOT ON TOP OF THEM
+        local directionAway
+        if flatDist > 1.5 then
+            -- Normal Orbiting
+            directionAway = (myHeadPos - enemyPos).Unit
+        else
+            -- If too close, use the Camera's current "Look" direction 
+            -- to prevent the spinning glitch
+            directionAway = -Camera.CFrame.LookVector 
+        end
+
         -- 3. Camera Settings (Adjust these to your liking)
         local camDistance = 12 -- How far back the camera sits
-        local camHeight = 0    -- How high above your head it sits
+        local camHeight = 2    -- How high above your head it sits
         
         -- 4. Calculate the Orbit Position
         local newCamPos = myHeadPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
@@ -243,9 +255,16 @@ RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, f
         Camera.CFrame = CFrame.lookAt(newCamPos, enemyPos)
     else
         -- 6. Reset camera when not targeting
+        -- if Camera.CameraType ~= Enum.CameraType.Custom then
+            -- Camera.CameraType = Enum.CameraType.Custom
+        -- end
+    -- end
+-- end)
+        Camera.CameraType = Enum.CameraType.Scriptable
+        Camera.CFrame = CFrame.lookAt(newCamPos, enemyPos)
+    else
         if Camera.CameraType ~= Enum.CameraType.Custom then
             Camera.CameraType = Enum.CameraType.Custom
         end
     end
 end)
-
