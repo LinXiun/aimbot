@@ -213,17 +213,20 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Targeting
+-- Targeting (FIXED RANGE MATCH)
 RunService.Heartbeat:Connect(function()
     local targets = {}
-    local visualRadius = currentScale * 0.8
+    -- Use half the scale because magnitude is radius, while mesh scale is diameter
+    local actualRadius = currentScale / 2 
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
             local root = plr.Character:FindFirstChild("HumanoidRootPart")
             if root and plr.Character.Humanoid.Health > 0 then
                 local dist = (RootPart.Position - root.Position).Magnitude
-                if dist <= visualRadius then
+                
+                -- Now matches the visual edge of the ring
+                if dist <= actualRadius then 
                     table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
                 end
             end
@@ -243,6 +246,7 @@ RunService.Heartbeat:Connect(function()
         Outline.Enabled = false
     end
 end)
+
 
 -- --- CAMERA & AVATAR LOCK ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
