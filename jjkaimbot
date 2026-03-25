@@ -62,19 +62,20 @@ Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 Outline.Enabled = false
 Outline.Parent = game.CoreGui 
 
--- --- 3. THE STABLE GUI ---
+-- --- 3. THE ULTRA-MINIMAL GUI ---
 local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "RingUI_Final"
+ScreenGui.Name = "MinimalRingUI"
 ScreenGui.ResetOnSpawn = false
 
+-- The only visible container (Transparent)
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 200, 0, 130)
+MainFrame.Size = UDim2.new(0, 60, 0, 35) -- Small box just for the switch
 MainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BackgroundTransparency = 1 -- Hidden background
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-MainFrame.ClipsDescendants = true
 
+-- Keep it draggable so you can move the switch anywhere
 local function makeDraggable(frame)
     local dragging, dragStart, startPos
     frame.InputBegan:Connect(function(input)
@@ -98,72 +99,23 @@ local function makeDraggable(frame)
 end
 makeDraggable(MainFrame)
 
--- Scaler
-local SliderArea = Instance.new("Frame", MainFrame)
-SliderArea.Size = UDim2.new(1, 0, 0, 50)
-SliderArea.BackgroundTransparency = 1
-
-local SliderLabel = Instance.new("TextLabel", SliderArea)
-SliderLabel.Size = UDim2.new(1, 0, 0, 25)
-SliderLabel.Text = "Range: " .. currentScale
-SliderLabel.TextColor3 = Color3.new(1, 1, 1)
-SliderLabel.BackgroundTransparency = 1
-
-local Track = Instance.new("Frame", SliderArea)
-Track.Size = UDim2.new(0.8, 0, 0, 4)
-Track.Position = UDim2.new(0.1, 0, 0.7, 0)
-Track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-Track.BorderSizePixel = 0
-
-local Knob = Instance.new("TextButton", Track)
-Knob.Size = UDim2.new(0, 20, 0, 20)
-Knob.AnchorPoint = Vector2.new(0.5, 0.5)
-Knob.Position = UDim2.new(0.3, 0, 0.5, 0)
-Knob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-Knob.Text = ""
-Knob.ZIndex = 15
-Instance.new("UICorner", Knob).CornerRadius = UDim.new(1, 0)
-
--- --- TOGGLE SWITCH SECTION ---
-local Content = Instance.new("Frame", MainFrame)
-Content.Size = UDim2.new(1, 0, 0, 80)
-Content.Position = UDim2.new(0, 0, 0, 50)
-Content.BackgroundTransparency = 1
-
-local ToggleLabel = Instance.new("TextLabel", Content)
-ToggleLabel.Size = UDim2.new(0.5, 0, 0, 35)
-ToggleLabel.Position = UDim2.new(0.1, 0, 0.2, 0)
-ToggleLabel.Text = "Aimbot"
-ToggleLabel.TextColor3 = Color3.new(1, 1, 1)
-ToggleLabel.BackgroundTransparency = 1
-ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local ToggleBG = Instance.new("TextButton", Content)
+-- THE TOGGLE SWITCH
+local ToggleBG = Instance.new("TextButton", MainFrame)
 ToggleBG.Size = UDim2.new(0, 50, 0, 25)
-ToggleBG.Position = UDim2.new(0.65, 0, 0.25, 0)
+ToggleBG.Position = UDim2.new(0.5, 0, 0.5, 0)
+ToggleBG.AnchorPoint = Vector2.new(0.5, 0.5)
 ToggleBG.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
 ToggleBG.Text = ""
 Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
 
 local ToggleKnob = Instance.new("Frame", ToggleBG)
 ToggleKnob.Size = UDim2.new(0, 21, 0, 21)
-ToggleKnob.Position = UDim2.new(0.55, 0, 0.5, 0) -- Start at ON position
+ToggleKnob.Position = UDim2.new(0.55, 0, 0.5, 0) 
 ToggleKnob.AnchorPoint = Vector2.new(0, 0.5)
 ToggleKnob.BackgroundColor3 = Color3.new(1, 1, 1)
 Instance.new("UICorner", ToggleKnob).CornerRadius = UDim.new(1, 0)
 
--- Minimize Button
-local MinBtn = Instance.new("TextButton", MainFrame)
-MinBtn.Size = UDim2.new(0, 30, 0, 30)
-MinBtn.Position = UDim2.new(1, -35, 0, 5)
-MinBtn.Text = "-"
-MinBtn.ZIndex = 20 
-MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-MinBtn.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", MinBtn)
-
--- --- 4. LOGIC ---
-
+-- --- 4. LOGIC (MINIMAL) ---
 local function updateToggle()
     local targetPos = aimbotEnabled and UDim2.new(0.55, 0, 0.5, 0) or UDim2.new(0.05, 0, 0.5, 0)
     local targetColor = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
@@ -177,41 +129,6 @@ ToggleBG.MouseButton1Down:Connect(function()
     updateToggle()
 end)
 
-MinBtn.MouseButton1Down:Connect(function()
-    isMinimized = not isMinimized
-    if isMinimized then
-        MainFrame.Size = UDim2.new(0, 200, 0, 50)
-        Content.Visible = false
-        MinBtn.Text = "+"
-    else
-        MainFrame.Size = UDim2.new(0, 200, 0, 130)
-        Content.Visible = true
-        MinBtn.Text = "-"
-    end
-end)
-
--- Slider Fix
-local sliderDragging = false
-Knob.MouseButton1Down:Connect(function() sliderDragging = true end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        sliderDragging = false
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    if sliderDragging then
-        local mousePos = UserInputService:GetMouseLocation().X
-        local trackPos = Track.AbsolutePosition.X
-        local trackWidth = Track.AbsoluteSize.X
-        local percentage = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
-
-        Knob.Position = UDim2.new(percentage, 0, 0.5, 0)
-        currentScale = math.floor(4 + (percentage * 46)) 
-        SliderLabel.Text = "Range: " .. currentScale
-        Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
-    end
-end)
 
 -- Targeting (FIXED RANGE MATCH)
 RunService.Heartbeat:Connect(function()
