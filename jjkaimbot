@@ -10,7 +10,7 @@ local Hum = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
 
 -- --- CONFIGURATION ---
-local currentScale = 10
+local currentScale = 100
 local aimbotEnabled = true
 local isMinimized = false
 local currentTarget = nil
