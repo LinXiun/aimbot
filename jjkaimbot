@@ -1,4 +1,4 @@
-local CCTV_Position = nil -- Stores the tripod location
+local CCTV_Position = nil 
 
 -- Services
 local Players = game:GetService("Players")
@@ -51,7 +51,13 @@ Weld.Part1 = Ring
 Weld.C0 = CFrame.new(0, -Hum.HipHeight - 1.4, 0) * CFrame.Angles(math.rad(90), 0, 0)
 Weld.Parent = Ring
 
--- --- 2. THE SUPER OBVIOUS OUTLINE ---
+-- --- 2. THE STABLE GUI ---
+local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
+ScreenGui.Name = "RingUI_Final"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 100 -- Ensures it's on top of game UI
+
+-- ENEMY HIGHLIGHT (Moved to ScreenGui for better compatibility)
 local Outline = Instance.new("Highlight")
 Outline.Name = "SuperOutline"
 Outline.FillColor = Color3.fromRGB(255, 0, 0)
@@ -60,21 +66,17 @@ Outline.OutlineColor = Color3.fromRGB(255, 0, 0)
 Outline.OutlineTransparency = 0
 Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
 Outline.Enabled = false
-Outline.Parent = game.CoreGui 
-
--- --- 3. THE STABLE GUI (REARRANGED FOR MINIMIZE FIX) ---
-local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "RingUI_Final"
-ScreenGui.ResetOnSpawn = false
+Outline.Parent = ScreenGui 
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 200, 0, 100) -- Adjusted total height for two 50px blocks
+MainFrame.Size = UDim2.new(0, 200, 0, 100) 
 MainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.ClipsDescendants = true
 
+-- Drag Logic
 local function makeDraggable(frame)
     local dragging, dragStart, startPos
     frame.InputBegan:Connect(function(input)
@@ -98,25 +100,27 @@ local function makeDraggable(frame)
 end
 makeDraggable(MainFrame)
 
--- TOP BAR (Toggle Switch - Always Visible)
-local Content = Instance.new("Frame", MainFrame)
-Content.Size = UDim2.new(1, 0, 0, 50)
-Content.Position = UDim2.new(0, 0, 0, 0)
-Content.BackgroundTransparency = 1
+-- TOP BAR (Toggle Switch)
+local TopBar = Instance.new("Frame", MainFrame)
+TopBar.Size = UDim2.new(1, 0, 0, 50)
+TopBar.BackgroundTransparency = 1
+TopBar.ZIndex = 5
 
-local ToggleLabel = Instance.new("TextLabel", Content)
+local ToggleLabel = Instance.new("TextLabel", TopBar)
 ToggleLabel.Size = UDim2.new(0.5, 0, 0, 35)
 ToggleLabel.Position = UDim2.new(0.1, 0, 0.15, 0)
 ToggleLabel.Text = "Aimbot"
 ToggleLabel.TextColor3 = Color3.new(1, 1, 1)
 ToggleLabel.BackgroundTransparency = 1
 ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+ToggleLabel.ZIndex = 6
 
-local ToggleBG = Instance.new("TextButton", Content)
+local ToggleBG = Instance.new("TextButton", TopBar)
 ToggleBG.Size = UDim2.new(0, 50, 0, 25)
 ToggleBG.Position = UDim2.new(0.55, 0, 0.25, 0)
 ToggleBG.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
 ToggleBG.Text = ""
+ToggleBG.ZIndex = 7
 Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
 
 local ToggleKnob = Instance.new("Frame", ToggleBG)
@@ -124,35 +128,39 @@ ToggleKnob.Size = UDim2.new(0, 21, 0, 21)
 ToggleKnob.Position = UDim2.new(0.55, 0, 0.5, 0) 
 ToggleKnob.AnchorPoint = Vector2.new(0, 0.5)
 ToggleKnob.BackgroundColor3 = Color3.new(1, 1, 1)
+ToggleKnob.ZIndex = 8
 Instance.new("UICorner", ToggleKnob).CornerRadius = UDim.new(1, 0)
 
--- Minimize Button (Always Visible)
+-- Minimize Button
 local MinBtn = Instance.new("TextButton", MainFrame)
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -35, 0, 10)
 MinBtn.Text = "-"
-MinBtn.ZIndex = 20 
+MinBtn.ZIndex = 10 
 MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
 Instance.new("UICorner", MinBtn)
 
--- BOTTOM BAR (Slider - Hidden when Minimized)
+-- BOTTOM BAR (Slider)
 local SliderArea = Instance.new("Frame", MainFrame)
 SliderArea.Size = UDim2.new(1, 0, 0, 50)
 SliderArea.Position = UDim2.new(0, 0, 0, 50) 
 SliderArea.BackgroundTransparency = 1
+SliderArea.ZIndex = 2
 
 local SliderLabel = Instance.new("TextLabel", SliderArea)
 SliderLabel.Size = UDim2.new(1, 0, 0, 25)
 SliderLabel.Text = "Range: " .. currentScale
 SliderLabel.TextColor3 = Color3.new(1, 1, 1)
 SliderLabel.BackgroundTransparency = 1
+SliderLabel.ZIndex = 3
 
 local Track = Instance.new("Frame", SliderArea)
 Track.Size = UDim2.new(0.8, 0, 0, 4)
 Track.Position = UDim2.new(0.1, 0, 0.7, 0)
 Track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 Track.BorderSizePixel = 0
+Track.ZIndex = 3
 
 local Knob = Instance.new("TextButton", Track)
 Knob.Size = UDim2.new(0, 20, 0, 20)
@@ -160,11 +168,10 @@ Knob.AnchorPoint = Vector2.new(0.5, 0.5)
 Knob.Position = UDim2.new(0.3, 0, 0.5, 0)
 Knob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 Knob.Text = ""
-Knob.ZIndex = 15
+Knob.ZIndex = 4
 Instance.new("UICorner", Knob).CornerRadius = UDim.new(1, 0)
 
-
--- --- 4. LOGIC ---
+-- --- LOGIC ---
 
 local function updateToggle()
     local targetPos = aimbotEnabled and UDim2.new(0.55, 0, 0.5, 0) or UDim2.new(0.05, 0, 0.5, 0)
@@ -174,20 +181,19 @@ local function updateToggle()
     TweenService:Create(ToggleBG, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
 end
 
-ToggleBG.MouseButton1Down:Connect(function()
+ToggleBG.MouseButton1Click:Connect(function()
     aimbotEnabled = not aimbotEnabled
     updateToggle()
 end)
 
--- Minimize Logic Fix
-MinBtn.MouseButton1Down:Connect(function()
+MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        MainFrame.Size = UDim2.new(0, 200, 0, 50) -- Shrinks to fit just the Top Bar
+        MainFrame.Size = UDim2.new(0, 200, 0, 50) 
         SliderArea.Visible = false
         MinBtn.Text = "+"
     else
-        MainFrame.Size = UDim2.new(0, 200, 0, 100) -- Expands back to full
+        MainFrame.Size = UDim2.new(0, 200, 0, 100) 
         SliderArea.Visible = true
         MinBtn.Text = "-"
     end
@@ -215,7 +221,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Targeting & Team Check
+-- Targeting & Universal Team Check
 RunService.Heartbeat:Connect(function()
     local targets = {}
     local visualRadius = currentScale * 0.8
@@ -223,10 +229,10 @@ RunService.Heartbeat:Connect(function()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
             
-            -- UNIVERSAL TEAM CHECK
+            -- Universal Team Check Logic
             local isTeammate = (plr.Team == Player.Team and plr.Team ~= nil) or (plr.TeamColor == Player.TeamColor)
+            
             if not isTeammate then
-                
                 local root = plr.Character:FindFirstChild("HumanoidRootPart")
                 if root and plr.Character.Humanoid.Health > 0 then
                     local dist = (RootPart.Position - root.Position).Magnitude
@@ -234,7 +240,6 @@ RunService.Heartbeat:Connect(function()
                         table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
                     end
                 end
-
             end
         end
     end
@@ -272,11 +277,11 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
         local collisionRange = 12 
         local camHeight = 2
 
-        -- AVATAR LOCK
+        -- Avatar Lock
         local faceTarget = Vector3.new(enemyBodyPos.X, myRootPos.Y, enemyBodyPos.Z)
         RootPart.CFrame = CFrame.lookAt(myRootPos, faceTarget)
 
-        -- CAMERA LOGIC
+        -- Camera Logic
         if flatDist > collisionRange then
             CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
         else
