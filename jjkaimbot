@@ -142,46 +142,37 @@ ToggleBG.MouseButton1Down:Connect(function()
     updateToggle()
 end)
 
--- Targeting Loop with GUI Health Update
+-- Targeting (FIXED RANGE MATCH)
 RunService.Heartbeat:Connect(function()
     local targets = {}
+    -- Use half the scale because magnitude is radius, while mesh scale is diameter
     local actualRadius = currentScale / 2 
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            -- Marker Check
-            local hasV = plr.Character:FindFirstChildWhichIsA("BillboardGui", true)
-            if not hasV then
-                local root = plr.Character:FindFirstChild("HumanoidRootPart")
-                if root and plr.Character.Humanoid.Health > 0 then
-                    local dist = (RootPart.Position - root.Position).Magnitude
-                    if dist <= actualRadius then
-                        table.insert(targets, {char = plr.Character, hum = plr.Character.Humanoid, dist = dist})
-                    end
+            local root = plr.Character:FindFirstChild("HumanoidRootPart")
+            if root and plr.Character.Humanoid.Health > 0 then
+                local dist = (RootPart.Position - root.Position).Magnitude
+                
+                -- Now matches the visual edge of the ring
+                if dist <= actualRadius then 
+                    table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
                 end
             end
         end
     end
 
     if #targets > 0 then
-        table.sort(targets, function(a, b) return a.dist < b.dist end)
+        table.sort(targets, function(a, b)
+            if a.hp ~= b.hp then return a.hp < b.hp end
+            return a.dist < b.dist
+        end)
         currentTarget = targets[1].char
-        local hum = targets[1].hum
-        
-        -- Update Highlight
         Outline.Adornee = currentTarget
         Outline.Enabled = true
-        
-        -- Update GUI Health Text
-        local hpPercent = math.floor((hum.Health / hum.MaxHealth) * 100)
-        HealthDisplay.Text = hpPercent .. "%"
-        HealthDisplay.TextColor3 = Color3.fromHSV(hpPercent/300, 0.8, 1) -- Shifts Green -> Red
     else
         currentTarget = nil
-        Outline.Adornee = nil
         Outline.Enabled = false
-        HealthDisplay.Text = "---"
-        HealthDisplay.TextColor3 = Color3.new(0.5, 0.5, 0.5)
     end
 end)
 
