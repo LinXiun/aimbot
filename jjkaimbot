@@ -213,38 +213,44 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- Camera Lock
+-- We use 'Camera' + 1 to ensure our script runs AFTER the default Roblox camera scripts
 RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
+    -- Ensure the target and its parts still exist
     if aimbotEnabled and currentTarget and currentTarget.char:FindFirstChild("HumanoidRootPart") then
-        -- 1. Get the Head for your position and RootPart for the enemy
-        local myHeadPos = Character:WaitForChild("Head").Position
-        local enemyBodyPos = currentTarget.char.HumanoidRootPart.Position
+        local targetRoot = currentTarget.char.HumanoidRootPart
+        local myHead = Character:FindFirstChild("Head")
         
-        -- 2. Calculate Distance to prevent the "Spinning" glitch
-        local dist = (myHeadPos - enemyBodyPos).Magnitude
-        
-        -- 3. Calculate Direction Away (Safe Check)
-        local directionAway
-        if dist > 2 then
-            -- Normal direction
-            directionAway = (myHeadPos - enemyBodyPos).Unit
-        else
-            -- Last known direction to prevent 0-vector spinning
-            directionAway = Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z).Unit * -1
+        if myHead then
+            -- 1. Get Positions
+            local myHeadPos = myHead.Position
+            local enemyBodyPos = targetRoot.Position
+            
+            -- 2. Force Camera to Scriptable every frame (Crucial for some games)
+            Camera.CameraType = Enum.CameraType.Scriptable
+            
+            -- 3. Calculate Direction Away (Distance check to prevent spinning)
+            local dist = (myHeadPos - enemyBodyPos).Magnitude
+            local directionAway
+            
+            if dist > 1.5 then
+                directionAway = (myHeadPos - enemyBodyPos).Unit
+            else
+                -- If too close, maintain current angle to prevent glitches
+                directionAway = -Camera.CFrame.LookVector
+            end
+            
+            -- 4. Set Camera Position & LookAt
+            local camDistance = 15
+            local newCamPos = myHeadPos + (directionAway * camDistance)
+            
+            -- This line does the actual "Aiming"
+            Camera.CFrame = CFrame.lookAt(newCamPos, enemyBodyPos)
         end
-        
-        -- 4. Set the Camera Position (At your head level)
-        local camDistance = 15 
-        local camHeight = 0 -- 0 keeps it perfectly level with your eyes
-        
-        local newCamPos = myHeadPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
-        
-        -- 5. APPLY: Position is at your head, but Looking at their Body
-        Camera.CameraType = Enum.CameraType.Scriptable
-        Camera.CFrame = CFrame.lookAt(newCamPos, enemyBodyPos)
     else
-        -- Return control to player
-        if Camera.CameraType ~= Enum.CameraType.Custom then
+        -- If target is lost or aimbot is OFF, give control back to player
+        if Camera.CameraType == Enum.CameraType.Scriptable then
             Camera.CameraType = Enum.CameraType.Custom
         end
     end
 end)
+
