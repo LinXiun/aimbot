@@ -213,23 +213,42 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Targeting (With Universal Team Check)
+-- Targeting (FIXED: CUSTOM "V" MARKER CHECK)
 RunService.Heartbeat:Connect(function()
     local targets = {}
     local visualRadius = currentScale * 0.8
 
     for _, plr in ipairs(Players:GetPlayers()) do
-        -- 1. Check if the player is not you and has a valid character
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
             
-            -- 2. UNIVERSAL TEAM CHECK
-            -- Checks if teams are the same, while ignoring if both are "Neutral" (nil)
-            local isTeammate = (plr.Team == Player.Team and plr.Team ~= nil) or (plr.TeamColor == Player.TeamColor)
+            -- --- TEAM CHECK (V-MARKER) START ---
+            -- We look for a BillboardGui (the thing that floats) 
+            -- and check if it has a label with "v" or is just a teammate marker.
+            local isTeammate = false
             
+            -- 1. Check for the floating "V" UI
+            local overhead = plr.Character:FindFirstChildWhichIsA("BillboardGui", true) or 
+                             plr.Character.Head:FindFirstChildWhichIsA("BillboardGui", true)
+            
+            if overhead and overhead.Enabled then
+                -- Most games use a TextLabel for the "v". We check if it contains "v"
+                local label = overhead:FindFirstChildWhichIsA("TextLabel", true)
+                if label and (label.Text:lower() == "v" or label.Text == "") then
+                    isTeammate = true
+                else
+                    -- If it's an image (like a custom icon), we still treat it as a teammate
+                    isTeammate = true 
+                end
+            end
+
+            -- 2. Fallback to standard teams just in case
+            if not isTeammate then
+                isTeammate = (plr.Team == Player.Team and plr.Team ~= nil) or (plr.TeamColor == Player.TeamColor)
+            end
+            
+            -- Only target if NOT a teammate
             if not isTeammate then
                 local root = plr.Character:FindFirstChild("HumanoidRootPart")
-                
-                -- 3. Check Health and Distance
                 if root and plr.Character.Humanoid.Health > 0 then
                     local dist = (RootPart.Position - root.Position).Magnitude
                     if dist <= visualRadius then
@@ -237,10 +256,11 @@ RunService.Heartbeat:Connect(function()
                     end
                 end
             end
+            -- --- TEAM CHECK END ---
+
         end
     end
 
-    -- 4. Target Selection (Priority: Lowest Health, then Closest Distance)
     if #targets > 0 then
         table.sort(targets, function(a, b)
             if a.hp ~= b.hp then return a.hp < b.hp end
@@ -254,6 +274,7 @@ RunService.Heartbeat:Connect(function()
         Outline.Enabled = false
     end
 end)
+
 
 
 -- --- CAMERA & AVATAR LOCK ---
