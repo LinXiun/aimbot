@@ -210,6 +210,41 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Targeting (TEAM CHECK REMOVED)
+RunService.Heartbeat:Connect(function()
+    local targets = {}
+    local visualRadius = currentScale * 0.8
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+            
+            -- Team check is gone; it now scans every other player
+            local root = plr.Character:FindFirstChild("HumanoidRootPart")
+            if root and plr.Character.Humanoid.Health > 0 then
+                local dist = (RootPart.Position - root.Position).Magnitude
+                if dist <= visualRadius then
+                    table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
+                end
+            end
+
+        end
+    end
+
+    if #targets > 0 then
+        table.sort(targets, function(a, b)
+            if a.hp ~= b.hp then return a.hp < b.hp end
+            return a.dist < b.dist
+        end)
+        currentTarget = targets[1].char
+        Outline.Adornee = currentTarget
+        Outline.Enabled = true
+    else
+        currentTarget = nil
+        Outline.Enabled = false
+    end
+end)
+
+
 
 -- --- CAMERA & AVATAR LOCK ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
