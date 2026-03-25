@@ -1,4 +1,4 @@
--- Roblox LocalScript: Ring System with Targeting & Mobile GUI
+-- Roblox LocalScript: Stabilized Ring, Targeting, & Slider GUI
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -8,21 +8,23 @@ local Character = Player.Character or Player.CharacterAdded:Wait()
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
 -- --- CONFIGURATION ---
-local RING_OFFSET = -2.9 -- Height adjustment for feet level
-local DEFAULT_SCALE = 6
-local currentScale = DEFAULT_SCALE
+local MIN_SCALE = 4
+local MAX_SCALE = 25
+local currentScale = 8
+local RING_Y_OFFSET = -3 -- Adjusts height to be exactly at feet level
 
--- --- 1. CREATE THE RING ---
+-- --- 1. THE RING (FIXED PHYSICS) ---
 local Ring = Instance.new("Part")
-Ring.Name = "FollowRing"
-Ring.Size = Vector3.new(1, 1, 1)
-Ring.Transparency = 0
-Ring.Color = Color3.fromRGB(255, 0, 0)
-Ring.CanCollide = false
-Ring.CanQuery = false
+Ring.Name = "VisualRing"
+Ring.CanCollide = false -- Set BEFORE parenting to prevent physics glitches
 Ring.CanTouch = false
-Ring.CastShadow = false
+Ring.CanQuery = false
+Ring.Massless = true -- Prevents the ring from affecting your weight/physics
+Ring.Anchored = false
+Ring.Size = Vector3.new(1, 1, 1)
 Ring.Material = Enum.Material.Neon
+Ring.Color = Color3.fromRGB(255, 0, 0)
+Ring.Transparency = 0.2
 Ring.Parent = Character
 
 local Mesh = Instance.new("SpecialMesh")
@@ -31,122 +33,148 @@ Mesh.MeshId = "rbxassetid://3270017"
 Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
 Mesh.Parent = Ring
 
-local Weld = Instance.new("WeldConstraint")
-Weld.Part0 = Ring
-Weld.Part1 = RootPart
+-- Stable Weld to prevent "teleporting"
+local Weld = Instance.new("Weld")
+Weld.Part0 = RootPart
+Weld.Part1 = Ring
+Weld.C0 = CFrame.new(0, RING_Y_OFFSET, 0) * CFrame.Angles(math.rad(90), 0, 0)
 Weld.Parent = Ring
-Ring.CFrame = RootPart.CFrame * CFrame.new(0, RING_OFFSET, 0) * CFrame.Angles(math.rad(90), 0, 0)
 
--- --- 2. THE HIGHLIGHT (TARGETING EFFECT) ---
+-- --- 2. THE HIGHLIGHT (TARGETING) ---
 local TargetHighlight = Instance.new("Highlight")
-TargetHighlight.FillTransparency = 1
-TargetHighlight.OutlineColor = Color3.fromRGB(255, 0, 0)
-TargetHighlight.OutlineTransparency = 0
+TargetHighlight.FillTransparency = 0.5
+TargetHighlight.FillColor = Color3.fromRGB(255, 0, 0)
+TargetHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 TargetHighlight.Enabled = false
-TargetHighlight.Parent = game.CoreGui -- Hidden from explorer, persistent
+TargetHighlight.Parent = game.CoreGui
 
--- --- 3. THE UI (PC/MOBILE OPTIMIZED) ---
+-- --- 3. THE REFINED GUI ---
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RingController"
+ScreenGui.Name = "RingUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = Player:WaitForChild("PlayerGui")
 
 -- Main Container
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 200, 0, 100)
+MainFrame.Size = UDim2.new(0, 220, 0, 110)
 MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
 local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = MainFrame
 
--- Scaler (Always Visible Section)
-local ScaleFrame = Instance.new("Frame")
-ScaleFrame.Size = UDim2.new(1, 0, 0, 40)
-ScaleFrame.BackgroundTransparency = 1
-ScaleFrame.Parent = MainFrame
+-- --- SLIDER SECTION (Always Visible) ---
+local SliderFrame = Instance.new("Frame")
+SliderFrame.Size = UDim2.new(1, -20, 0, 40)
+SliderFrame.Position = UDim2.new(0, 10, 0, 10)
+SliderFrame.BackgroundTransparency = 1
+SliderFrame.Parent = MainFrame
 
-local ScaleLabel = Instance.new("TextLabel")
-ScaleLabel.Size = UDim2.new(0.4, 0, 1, 0)
-ScaleLabel.Text = "Size:"
-ScaleLabel.TextColor3 = Color3.new(1, 1, 1)
-ScaleLabel.BackgroundTransparency = 1
-ScaleLabel.Parent = ScaleFrame
+local SliderLabel = Instance.new("TextLabel")
+SliderLabel.Size = UDim2.new(1, 0, 0, 15)
+SliderLabel.Text = "Ring Size: " .. currentScale
+SliderLabel.TextColor3 = Color3.new(1, 1, 1)
+SliderLabel.BackgroundTransparency = 1
+SliderLabel.TextSize = 14
+SliderLabel.Parent = SliderFrame
 
-local ScaleInput = Instance.new("TextBox")
-ScaleInput.Size = UDim2.new(0.5, 0, 0.7, 0)
-ScaleInput.Position = UDim2.new(0.45, 0, 0.15, 0)
-ScaleInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ScaleInput.Text = tostring(DEFAULT_SCALE)
-ScaleInput.TextColor3 = Color3.new(1, 1, 1)
-ScaleInput.Parent = ScaleFrame
+local SliderTrack = Instance.new("Frame")
+SliderTrack.Size = UDim2.new(1, 0, 0, 6)
+SliderTrack.Position = UDim2.new(0, 0, 0.7, 0)
+SliderTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SliderTrack.BorderSizePixel = 0
+SliderTrack.Parent = SliderFrame
 
--- Content Section (Minimizable)
+local SliderKnob = Instance.new("TextButton")
+SliderKnob.Size = UDim2.new(0, 16, 0, 16)
+SliderKnob.Position = UDim2.new(0.2, -8, 0.5, -8) -- Initial pos
+SliderKnob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+SliderKnob.Text = ""
+SliderKnob.Parent = SliderTrack
+
+local KnobCorner = Instance.new("UICorner")
+KnobCorner.CornerRadius = UDim.new(1, 0)
+KnobCorner.Parent = SliderKnob
+
+-- --- CONTENT SECTION (Minimizable) ---
 local Content = Instance.new("Frame")
-Content.Name = "Content"
-Content.Size = UDim2.new(1, 0, 0, 60)
-Content.Position = UDim2.new(0, 0, 0, 40)
+Content.Size = UDim2.new(1, 0, 0, 50)
+Content.Position = UDim2.new(0, 0, 0, 50)
 Content.BackgroundTransparency = 1
 Content.Parent = MainFrame
 
-local InfoLabel = Instance.new("TextLabel")
-InfoLabel.Size = UDim2.new(1, 0, 1, 0)
-InfoLabel.Text = "Targeting Active\nPriority: Low HP > Nearest"
-InfoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-InfoLabel.TextSize = 12
-InfoLabel.BackgroundTransparency = 1
-InfoLabel.Parent = Content
+local Info = Instance.new("TextLabel")
+Info.Size = UDim2.new(1, 0, 1, 0)
+Info.Text = "Targeting: Low HP > Nearest"
+Info.TextColor3 = Color3.fromRGB(150, 150, 150)
+Info.TextSize = 12
+Info.BackgroundTransparency = 1
+Info.Parent = Content
 
--- Minimize Button
+-- --- MINIMIZE BUTTON ---
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 20, 0, 20)
-MinBtn.Position = UDim2.new(1, -25, 0, 5)
-MinBtn.Text = "-"
-MinBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+MinBtn.Size = UDim2.new(0, 30, 0, 20)
+MinBtn.Position = UDim2.new(1, -35, 0, 5)
+MinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MinBtn.Text = "_"
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
 MinBtn.Parent = MainFrame
 
-local minimized = false
+local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
-	minimized = not minimized
-	Content.Visible = not minimized
-	MainFrame.Size = minimized and UDim2.new(0, 200, 0, 40) or UDim2.new(0, 200, 0, 100)
-	MinBtn.Text = minimized and "+" or "-"
+	isMinimized = not isMinimized
+	Content.Visible = not isMinimized
+	MainFrame.Size = isMinimized and UDim2.new(0, 220, 0, 60) or UDim2.new(0, 220, 0, 110)
+	MinBtn.Text = isMinimized and "+" or "_"
 end)
 
--- --- 4. LOGIC & OPTIMIZATION ---
+-- --- 4. SLIDER LOGIC ---
+local dragging = false
 
--- Scaling Logic
-ScaleInput.FocusLost:Connect(function()
-	local val = tonumber(ScaleInput.Text)
-	if val then
-		currentScale = math.clamp(val, 1, 50)
-		Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
+local function updateSlider()
+	local mousePos = UserInputService:GetMouseLocation().X
+	local trackPos = SliderTrack.AbsolutePosition.X
+	local trackSize = SliderTrack.AbsoluteSize.X
+	local percentage = math.clamp((mousePos - trackPos) / trackSize, 0, 1)
+	
+	SliderKnob.Position = UDim2.new(percentage, -8, 0.5, -8)
+	currentScale = math.floor(MIN_SCALE + (percentage * (MAX_SCALE - MIN_SCALE)))
+	SliderLabel.Text = "Ring Size: " .. currentScale
+	Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
+end
+
+SliderKnob.MouseButton1Down:Connect(function() dragging = true end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
 	end
-	ScaleInput.Text = tostring(currentScale)
 end)
 
--- Targeting Heartbeat
+RunService.RenderStepped:Connect(function()
+	if dragging then
+		updateSlider()
+	end
+end)
+
+-- --- 5. TARGETING LOGIC ---
 RunService.Heartbeat:Connect(function()
-	local targets = {}
-	local radius = currentScale * 0.8 -- Adjusted for mesh visual scale
+	local potentialTargets = {}
+	local ringRadius = (currentScale * 0.8) -- Match visual mesh size
 	
 	for _, otherPlayer in ipairs(Players:GetPlayers()) do
-		if otherPlayer ~= Player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
-			local otherRoot = otherPlayer.Character.HumanoidRootPart
-			local dist = (RootPart.Position - otherRoot.Position).Magnitude
-			
-			if dist <= radius then
-				local hum = otherPlayer.Character:FindFirstChild("Humanoid")
-				if hum and hum.Health > 0 then
-					table.insert(targets, {
-						player = otherPlayer,
+		if otherPlayer ~= Player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Humanoid") then
+			local targetRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if targetRoot then
+				local dist = (RootPart.Position - targetRoot.Position).Magnitude
+				if dist <= ringRadius then
+					table.insert(potentialTargets, {
 						char = otherPlayer.Character,
-						health = hum.Health,
+						hp = otherPlayer.Character.Humanoid.Health,
 						dist = dist
 					})
 				end
@@ -154,18 +182,16 @@ RunService.Heartbeat:Connect(function()
 		end
 	end
 	
-	if #targets > 0 then
-		-- Sorting: Primary = Low Health, Secondary = Distance
-		table.sort(targets, function(a, b)
-			if a.health ~= b.health then
-				return a.health < b.health
-			else
-				return a.dist < b.dist
+	if #potentialTargets > 0 then
+		-- Sort by Low HP first, then Distance
+		table.sort(potentialTargets, function(a, b)
+			if a.hp ~= b.hp then
+				return a.hp < b.hp
 			end
+			return a.dist < b.dist
 		end)
 		
-		local bestTarget = targets[1].char
-		TargetHighlight.Adornee = bestTarget
+		TargetHighlight.Adornee = potentialTargets[1].char
 		TargetHighlight.Enabled = true
 	else
 		TargetHighlight.Enabled = false
