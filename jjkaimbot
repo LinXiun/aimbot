@@ -24,7 +24,7 @@ MyHighlight.Parent = Character
 
 -- --- CONFIGURATION ---
 local currentScale = 120
-local aimbotEnabled = true -- Now ON by default
+local aimbotEnabled = true 
 local isMinimized = false
 local currentTarget = nil
 
@@ -55,12 +55,12 @@ Weld.Parent = Ring
 local Outline = Instance.new("Highlight")
 Outline.Name = "SuperOutline"
 Outline.FillColor = Color3.fromRGB(255, 0, 0)
-Outline.FillTransparency = 0.5 -- Adds a slight red glow to the body
+Outline.FillTransparency = 0.5 
 Outline.OutlineColor = Color3.fromRGB(255, 0, 0)
 Outline.OutlineTransparency = 0
-Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Visible through walls
+Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
 Outline.Enabled = false
-Outline.Parent = game.CoreGui -- Ensures it renders over everything
+Outline.Parent = game.CoreGui 
 
 -- --- 3. THE STABLE GUI ---
 local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
@@ -76,29 +76,29 @@ MainFrame.Active = true
 MainFrame.ClipsDescendants = true
 
 local function makeDraggable(frame)
-	local dragging, dragStart, startPos
-	frame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = frame.Position
-		end
-	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-		end
-	end)
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = false
-		end
-	end)
+        local dragging, dragStart, startPos
+        frame.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = true
+                        dragStart = input.Position
+                        startPos = frame.Position
+                end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                        local delta = input.Position - dragStart
+                        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = false
+                end
+        end)
 end
 makeDraggable(MainFrame)
 
--- Scaler (Persistent)
+-- Scaler
 local SliderArea = Instance.new("Frame", MainFrame)
 SliderArea.Size = UDim2.new(1, 0, 0, 50)
 SliderArea.BackgroundTransparency = 1
@@ -139,132 +139,128 @@ AimbotBtn.TextColor3 = Color3.new(1, 1, 1)
 AimbotBtn.ZIndex = 5
 Instance.new("UICorner", AimbotBtn)
 
--- Minimize Button (Always Clickable)
 local MinBtn = Instance.new("TextButton", MainFrame)
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -35, 0, 5)
 MinBtn.Text = "-"
-MinBtn.ZIndex = 20 -- Keeps it above everything else
+MinBtn.ZIndex = 20 
 MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
 Instance.new("UICorner", MinBtn)
 
 -- --- 4. LOGIC ---
 
--- Fix for buttons not being clickable
 MinBtn.MouseButton1Down:Connect(function()
-	isMinimized = not isMinimized
-	if isMinimized then
-		MainFrame.Size = UDim2.new(0, 200, 0, 50)
-		Content.Visible = false
-		MinBtn.Text = "+"
-	else
-		MainFrame.Size = UDim2.new(0, 200, 0, 130)
-		Content.Visible = true
-		MinBtn.Text = "-"
-	end
+        isMinimized = not isMinimized
+        if isMinimized then
+                MainFrame.Size = UDim2.new(0, 200, 0, 50)
+                Content.Visible = false
+                MinBtn.Text = "+"
+        else
+                MainFrame.Size = UDim2.new(0, 200, 0, 130)
+                Content.Visible = true
+                MinBtn.Text = "-"
+        end
 end)
 
 AimbotBtn.MouseButton1Down:Connect(function()
-	aimbotEnabled = not aimbotEnabled
-	AimbotBtn.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
-	AimbotBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
+        aimbotEnabled = not aimbotEnabled
+        AimbotBtn.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
+        AimbotBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
 end)
 
--- Slider Fix
 local sliderDragging = false
 Knob.MouseButton1Down:Connect(function() sliderDragging = true end)
 UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		sliderDragging = false
-	end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                sliderDragging = false
+        end
 end)
 
 RunService.RenderStepped:Connect(function()
-	if sliderDragging then
-		local mousePos = UserInputService:GetMouseLocation().X
-		local trackPos = Track.AbsolutePosition.X
-		local trackWidth = Track.AbsoluteSize.X
-		local percentage = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
-		
-		Knob.Position = UDim2.new(percentage, 0, 0.5, 0)
-		currentScale = math.floor(4 + (percentage * 46)) -- Range 4 to 50
-		SliderLabel.Text = "Range: " .. currentScale
-		Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
-	end
+        if sliderDragging then
+                local mousePos = UserInputService:GetMouseLocation().X
+                local trackPos = Track.AbsolutePosition.X
+                local trackWidth = Track.AbsoluteSize.X
+                local percentage = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
+
+                Knob.Position = UDim2.new(percentage, 0, 0.5, 0)
+                currentScale = math.floor(4 + (percentage * 46)) 
+                SliderLabel.Text = "Range: " .. currentScale
+                Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
+        end
 end)
 
 -- Targeting
 RunService.Heartbeat:Connect(function()
-	local targets = {}
-	local visualRadius = currentScale * 0.8
-	
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-			local root = plr.Character:FindFirstChild("HumanoidRootPart")
-			if root and plr.Character.Humanoid.Health > 0 then
-				local dist = (RootPart.Position - root.Position).Magnitude
-				if dist <= visualRadius then
-					table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
-				end
-			end
-		end
-	end
-	
-	if #targets > 0 then
-		table.sort(targets, function(a, b)
-			if a.hp ~= b.hp then return a.hp < b.hp end
-			return a.dist < b.dist
-		end)
-		currentTarget = targets[1].char
-		Outline.Adornee = currentTarget
-		Outline.Enabled = true
-	else
-		currentTarget = nil
-		Outline.Enabled = false
-	end
+        local targets = {}
+        local visualRadius = currentScale * 0.8
+
+        for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+                        local root = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if root and plr.Character.Humanoid.Health > 0 then
+                                local dist = (RootPart.Position - root.Position).Magnitude
+                                if dist <= visualRadius then
+                                        table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
+                                end
+                        end
+                end
+        end
+
+        if #targets > 0 then
+                table.sort(targets, function(a, b)
+                        if a.hp ~= b.hp then return a.hp < b.hp end
+                        return a.dist < b.dist
+                end)
+                currentTarget = targets[1].char
+                Outline.Adornee = currentTarget
+                Outline.Enabled = true
+        else
+                currentTarget = nil
+                Outline.Enabled = false
+        end
 end)
 
--- Camera Lock working
---RunService:BindToRenderStep("FinalLock", --Enum.RenderPriority.Camera.Value + 1, function()
---	if aimbotEnabled and currentTarget and --currentTarget:FindFirstChild("HumanoidRootPart") then
---		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, --  currentTarget.HumanoidRootPart.Position)
---	end
---end)
 
-
+-- --- SMART CAMERA LOCK (FIXED) ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
     if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Head") then
-        
-        -- 1. FORCE NOCLIP (Glitch through walls)
+
+        -- Force Noclip (Glitch through walls)
         workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
-        
+
         local myHeadPos = Character.Head.Position
         local enemyBodyPos = currentTarget.HumanoidRootPart.Position
         local directionAway = (myHeadPos - enemyBodyPos).Unit
+        local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyBodyPos.X, 0, enemyBodyPos.Z)).Magnitude
 
-        -- 2. CAMERA THRESHOLDS
-        local idealDistance = 15 -- How far the cam wants to be
-        local minThreshold = 8   -- Move BACK if closer than this
-        local maxThreshold = 25  -- Move FORWARD if further than this
+        -- Settings
+        local idealDistance = 15 
+        local minThreshold = 8   
+        local maxThreshold = 25  
+        local collisionRange = 12 -- CCTV only kicks in if you are within 12 studs of enemy
         local camHeight = 2
 
-        -- 3. INITIAL SETUP
-        if CCTV_Position == nil then
+        -- LOGIC: Follow normally when far, Park tripod when close
+        if flatDist > collisionRange then
+            -- FOLLOW MODE: Update position every frame while far away
             CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
+        else
+            -- CCTV MODE: Only update tripod if you get way out of range (8-25 studs)
+            if CCTV_Position == nil then
+                CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
+            end
+            
+            local distToCam = (myHeadPos - CCTV_Position).Magnitude
+            if distToCam < minThreshold or distToCam > maxThreshold then
+                CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
+            end
         end
 
-        -- 4. THE SMART TETHER (The "Catch-Up" and "Retreat" Logic)
-        local distToCam = (myHeadPos - CCTV_Position).Magnitude
-
-        if distToCam < minThreshold or distToCam > maxThreshold then
-            -- If you are too close OR too far, the camera relocates to the ideal spot
-            CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
-        end
-
-        -- 5. APPLY VIEW (Always looking at the Body)
+        -- Look at Body
         workspace.CurrentCamera.CFrame = CFrame.lookAt(CCTV_Position, enemyBodyPos)
-        
+
     else
         -- Restore default camera
         if workspace.CurrentCamera.CameraType == Enum.CameraType.Scriptable then
