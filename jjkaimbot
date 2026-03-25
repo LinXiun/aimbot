@@ -251,9 +251,9 @@ RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, f
         
         -- 5. Apply the Camera LookAt
         -- This forces the cam to ignore walls and look at the enemy
-        Camera.CameraType = Enum.CameraType.Scriptable
-        Camera.CFrame = CFrame.lookAt(newCamPos, enemyPos)
-    else
+        -- Camera.CameraType = Enum.CameraType.Scriptable
+        -- Camera.CFrame = CFrame.lookAt(newCamPos, enemyPos)
+    -- else
         -- 6. Reset camera when not targeting
         -- if Camera.CameraType ~= Enum.CameraType.Custom then
             -- Camera.CameraType = Enum.CameraType.Custom
