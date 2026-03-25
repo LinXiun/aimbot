@@ -1,4 +1,4 @@
--- Roblox LocalScript: Stabilized Ring, Targeting, & Slider GUI
+-- Roblox LocalScript: Stabilized Ring, Targeting, Slider GUI, & Aimbot
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -6,20 +6,23 @@ local UserInputService = game:GetService("UserInputService")
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Camera = workspace.CurrentCamera
 
 -- --- CONFIGURATION ---
 local MIN_SCALE = 4
 local MAX_SCALE = 25
 local currentScale = 8
-local RING_Y_OFFSET = -3 -- Adjusts height to be exactly at feet level
+local RING_Y_OFFSET = -3
+local aimbotEnabled = false
+local currentTarget = nil -- Stores the player currently being targeted
 
 -- --- 1. THE RING (FIXED PHYSICS) ---
 local Ring = Instance.new("Part")
 Ring.Name = "VisualRing"
-Ring.CanCollide = false -- Set BEFORE parenting to prevent physics glitches
+Ring.CanCollide = false
 Ring.CanTouch = false
 Ring.CanQuery = false
-Ring.Massless = true -- Prevents the ring from affecting your weight/physics
+Ring.Massless = true
 Ring.Anchored = false
 Ring.Size = Vector3.new(1, 1, 1)
 Ring.Material = Enum.Material.Neon
@@ -33,7 +36,6 @@ Mesh.MeshId = "rbxassetid://3270017"
 Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
 Mesh.Parent = Ring
 
--- Stable Weld to prevent "teleporting"
 local Weld = Instance.new("Weld")
 Weld.Part0 = RootPart
 Weld.Part1 = Ring
@@ -54,14 +56,15 @@ ScreenGui.Name = "RingUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = Player:WaitForChild("PlayerGui")
 
--- Main Container
+-- Main Container (Fixed Minimizer Bug)
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 220, 0, 110)
+MainFrame.Size = UDim2.new(0, 220, 0, 130)
 MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true -- FIX: Hides elements when minimized
 MainFrame.Parent = ScreenGui
 
 local UICorner = Instance.new("UICorner")
@@ -70,7 +73,7 @@ UICorner.Parent = MainFrame
 
 -- --- SLIDER SECTION (Always Visible) ---
 local SliderFrame = Instance.new("Frame")
-SliderFrame.Size = UDim2.new(1, -20, 0, 40)
+SliderFrame.Size = UDim2.new(1, -40, 0, 40)
 SliderFrame.Position = UDim2.new(0, 10, 0, 10)
 SliderFrame.BackgroundTransparency = 1
 SliderFrame.Parent = MainFrame
@@ -90,9 +93,11 @@ SliderTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 SliderTrack.BorderSizePixel = 0
 SliderTrack.Parent = SliderFrame
 
+-- FIX: Centered anchor point stops the knob from disappearing
 local SliderKnob = Instance.new("TextButton")
 SliderKnob.Size = UDim2.new(0, 16, 0, 16)
-SliderKnob.Position = UDim2.new(0.2, -8, 0.5, -8) -- Initial pos
+SliderKnob.AnchorPoint = Vector2.new(0.5, 0.5) 
+SliderKnob.Position = UDim2.new(0.2, 0, 0.5, 0)
 SliderKnob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 SliderKnob.Text = ""
 SliderKnob.Parent = SliderTrack
@@ -103,18 +108,33 @@ KnobCorner.Parent = SliderKnob
 
 -- --- CONTENT SECTION (Minimizable) ---
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, 0, 0, 50)
+Content.Size = UDim2.new(1, 0, 0, 80)
 Content.Position = UDim2.new(0, 0, 0, 50)
 Content.BackgroundTransparency = 1
 Content.Parent = MainFrame
 
 local Info = Instance.new("TextLabel")
-Info.Size = UDim2.new(1, 0, 1, 0)
+Info.Size = UDim2.new(1, 0, 0, 20)
+Info.Position = UDim2.new(0, 0, 0, 0)
 Info.Text = "Targeting: Low HP > Nearest"
 Info.TextColor3 = Color3.fromRGB(150, 150, 150)
 Info.TextSize = 12
 Info.BackgroundTransparency = 1
 Info.Parent = Content
+
+-- Aimbot Toggle Button
+local AimbotBtn = Instance.new("TextButton")
+AimbotBtn.Size = UDim2.new(0.8, 0, 0, 30)
+AimbotBtn.Position = UDim2.new(0.1, 0, 0, 30)
+AimbotBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+AimbotBtn.Text = "Aimbot: OFF"
+AimbotBtn.TextColor3 = Color3.new(1, 1, 1)
+AimbotBtn.Font = Enum.Font.SourceSansBold
+AimbotBtn.Parent = Content
+
+local AimbotCorner = Instance.new("UICorner")
+AimbotCorner.CornerRadius = UDim.new(0, 6)
+AimbotCorner.Parent = AimbotBtn
 
 -- --- MINIMIZE BUTTON ---
 local MinBtn = Instance.new("TextButton")
@@ -125,46 +145,60 @@ MinBtn.Text = "_"
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
 MinBtn.Parent = MainFrame
 
+-- --- 4. UI LOGIC ---
+
+-- Minimizer Logic
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
 	isMinimized = not isMinimized
-	Content.Visible = not isMinimized
-	MainFrame.Size = isMinimized and UDim2.new(0, 220, 0, 60) or UDim2.new(0, 220, 0, 110)
+	MainFrame.Size = isMinimized and UDim2.new(0, 220, 0, 50) or UDim2.new(0, 220, 0, 130)
 	MinBtn.Text = isMinimized and "+" or "_"
 end)
 
--- --- 4. SLIDER LOGIC ---
+-- Aimbot Toggle Logic
+AimbotBtn.MouseButton1Click:Connect(function()
+	aimbotEnabled = not aimbotEnabled
+	if aimbotEnabled then
+		AimbotBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+		AimbotBtn.Text = "Aimbot: ON"
+	else
+		AimbotBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+		AimbotBtn.Text = "Aimbot: OFF"
+	end
+end)
+
+-- Slider Logic (Fixed for Mobile/PC stability)
 local dragging = false
+SliderKnob.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+	end
+end)
 
-local function updateSlider()
-	local mousePos = UserInputService:GetMouseLocation().X
-	local trackPos = SliderTrack.AbsolutePosition.X
-	local trackSize = SliderTrack.AbsoluteSize.X
-	local percentage = math.clamp((mousePos - trackPos) / trackSize, 0, 1)
-	
-	SliderKnob.Position = UDim2.new(percentage, -8, 0.5, -8)
-	currentScale = math.floor(MIN_SCALE + (percentage * (MAX_SCALE - MIN_SCALE)))
-	SliderLabel.Text = "Ring Size: " .. currentScale
-	Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
-end
-
-SliderKnob.MouseButton1Down:Connect(function() dragging = true end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = false
 	end
 end)
 
-RunService.RenderStepped:Connect(function()
-	if dragging then
-		updateSlider()
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local mousePos = input.Position.X
+		local trackPos = SliderTrack.AbsolutePosition.X
+		local trackSize = SliderTrack.AbsoluteSize.X
+		local percentage = math.clamp((mousePos - trackPos) / trackSize, 0, 1)
+		
+		SliderKnob.Position = UDim2.new(percentage, 0, 0.5, 0)
+		currentScale = math.floor(MIN_SCALE + (percentage * (MAX_SCALE - MIN_SCALE)))
+		SliderLabel.Text = "Ring Size: " .. currentScale
+		Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
 	end
 end)
 
--- --- 5. TARGETING LOGIC ---
+-- --- 5. TARGETING & AIMBOT LOGIC ---
 RunService.Heartbeat:Connect(function()
 	local potentialTargets = {}
-	local ringRadius = (currentScale * 0.8) -- Match visual mesh size
+	local ringRadius = (currentScale * 0.8)
 	
 	for _, otherPlayer in ipairs(Players:GetPlayers()) do
 		if otherPlayer ~= Player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Humanoid") then
@@ -183,17 +217,24 @@ RunService.Heartbeat:Connect(function()
 	end
 	
 	if #potentialTargets > 0 then
-		-- Sort by Low HP first, then Distance
 		table.sort(potentialTargets, function(a, b)
-			if a.hp ~= b.hp then
-				return a.hp < b.hp
-			end
+			if a.hp ~= b.hp then return a.hp < b.hp end
 			return a.dist < b.dist
 		end)
 		
-		TargetHighlight.Adornee = potentialTargets[1].char
+		currentTarget = potentialTargets[1].char
+		TargetHighlight.Adornee = currentTarget
 		TargetHighlight.Enabled = true
 	else
+		currentTarget = nil
 		TargetHighlight.Enabled = false
+	end
+end)
+
+-- Camera Lock (Aimbot)
+RunService.RenderStepped:Connect(function()
+	if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
+		local targetPos = currentTarget.HumanoidRootPart.Position
+		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPos)
 	end
 end)
