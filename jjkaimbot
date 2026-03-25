@@ -213,70 +213,36 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Targeting (FIXED: AGGRESSIVE TEAM & MARKER CHECK)
+-- Targeting
 RunService.Heartbeat:Connect(function()
     local targets = {}
     local visualRadius = currentScale * 0.8
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            
-            -- 1. SEARCH FOR THE "V" MARKER (Common Anime Game Names)
-            -- We check for "Marker", "Indicator", "Party", or "Team"
-            local char = plr.Character
-            local isTeammate = false
-            
-            -- Look in the Head and Character for common BillboardGui names
-            local marker = char:FindFirstChild("Marker", true) or 
-                           char:FindFirstChild("Indicator", true) or 
-                           char:FindFirstChild("Party", true) or
-                           char:FindFirstChildWhichIsA("BillboardGui", true)
-
-            -- If a marker exists AND it is enabled, we consider them a teammate
-            if marker and marker.Enabled == true then
-                isTeammate = true
-            end
-
-            -- 2. STANDARD TEAM FALLBACK (Only if Marker wasn't found)
-            if not isTeammate then
-                isTeammate = (plr.Team == Player.Team and plr.Team ~= nil) or (plr.TeamColor == Player.TeamColor)
-            end
-            
-            -- 3. THE "SAFETY" CHECK
-            -- If the game doesn't have a formal team system, Player.Team is often 'nil' 
-            -- for everyone, which can cause bugs. We ensure we aren't skipping everyone.
-            if not isTeammate then
-                local root = char:FindFirstChild("HumanoidRootPart")
-                if root and char.Humanoid.Health > 0 then
-                    local dist = (RootPart.Position - root.Position).Magnitude
-                    if dist <= visualRadius then
-                        table.insert(targets, {char = char, hp = char.Humanoid.Health, dist = dist})
-                    end
+            local root = plr.Character:FindFirstChild("HumanoidRootPart")
+            if root and plr.Character.Humanoid.Health > 0 then
+                local dist = (RootPart.Position - root.Position).Magnitude
+                if dist <= visualRadius then
+                    table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
                 end
             end
         end
     end
 
-    -- 4. APPLY TARGET & HIGHLIGHT
     if #targets > 0 then
         table.sort(targets, function(a, b)
             if a.hp ~= b.hp then return a.hp < b.hp end
             return a.dist < b.dist
         end)
-        
-        local potentialTarget = targets[1].char
-        if currentTarget ~= potentialTarget then
-            currentTarget = potentialTarget
-            Outline.Adornee = currentTarget -- Ensure highlight is attached
-            Outline.Enabled = true
-        end
+        currentTarget = targets[1].char
+        Outline.Adornee = currentTarget
+        Outline.Enabled = true
     else
         currentTarget = nil
-        Outline.Adornee = nil
         Outline.Enabled = false
     end
 end)
-
 
 -- --- CAMERA & AVATAR LOCK ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
