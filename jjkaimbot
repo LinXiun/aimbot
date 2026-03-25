@@ -213,7 +213,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Targeting (FIXED: CUSTOM "V" MARKER CHECK)
+-- Targeting (FIXED: AGGRESSIVE TEAM & MARKER CHECK)
 RunService.Heartbeat:Connect(function()
     local targets = {}
     local visualRadius = currentScale * 0.8
@@ -221,60 +221,61 @@ RunService.Heartbeat:Connect(function()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
             
-            -- --- TEAM CHECK (V-MARKER) START ---
-            -- We look for a BillboardGui (the thing that floats) 
-            -- and check if it has a label with "v" or is just a teammate marker.
+            -- 1. SEARCH FOR THE "V" MARKER (Common Anime Game Names)
+            -- We check for "Marker", "Indicator", "Party", or "Team"
+            local char = plr.Character
             local isTeammate = false
             
-            -- 1. Check for the floating "V" UI
-            local overhead = plr.Character:FindFirstChildWhichIsA("BillboardGui", true) or 
-                             plr.Character.Head:FindFirstChildWhichIsA("BillboardGui", true)
-            
-            if overhead and overhead.Enabled then
-                -- Most games use a TextLabel for the "v". We check if it contains "v"
-                local label = overhead:FindFirstChildWhichIsA("TextLabel", true)
-                if label and (label.Text:lower() == "v" or label.Text == "") then
-                    isTeammate = true
-                else
-                    -- If it's an image (like a custom icon), we still treat it as a teammate
-                    isTeammate = true 
-                end
+            -- Look in the Head and Character for common BillboardGui names
+            local marker = char:FindFirstChild("Marker", true) or 
+                           char:FindFirstChild("Indicator", true) or 
+                           char:FindFirstChild("Party", true) or
+                           char:FindFirstChildWhichIsA("BillboardGui", true)
+
+            -- If a marker exists AND it is enabled, we consider them a teammate
+            if marker and marker.Enabled == true then
+                isTeammate = true
             end
 
-            -- 2. Fallback to standard teams just in case
+            -- 2. STANDARD TEAM FALLBACK (Only if Marker wasn't found)
             if not isTeammate then
                 isTeammate = (plr.Team == Player.Team and plr.Team ~= nil) or (plr.TeamColor == Player.TeamColor)
             end
             
-            -- Only target if NOT a teammate
+            -- 3. THE "SAFETY" CHECK
+            -- If the game doesn't have a formal team system, Player.Team is often 'nil' 
+            -- for everyone, which can cause bugs. We ensure we aren't skipping everyone.
             if not isTeammate then
-                local root = plr.Character:FindFirstChild("HumanoidRootPart")
-                if root and plr.Character.Humanoid.Health > 0 then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if root and char.Humanoid.Health > 0 then
                     local dist = (RootPart.Position - root.Position).Magnitude
                     if dist <= visualRadius then
-                        table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
+                        table.insert(targets, {char = char, hp = char.Humanoid.Health, dist = dist})
                     end
                 end
             end
-            -- --- TEAM CHECK END ---
-
         end
     end
 
+    -- 4. APPLY TARGET & HIGHLIGHT
     if #targets > 0 then
         table.sort(targets, function(a, b)
             if a.hp ~= b.hp then return a.hp < b.hp end
             return a.dist < b.dist
         end)
-        currentTarget = targets[1].char
-        Outline.Adornee = currentTarget
-        Outline.Enabled = true
+        
+        local potentialTarget = targets[1].char
+        if currentTarget ~= potentialTarget then
+            currentTarget = potentialTarget
+            Outline.Adornee = currentTarget -- Ensure highlight is attached
+            Outline.Enabled = true
+        end
     else
         currentTarget = nil
+        Outline.Adornee = nil
         Outline.Enabled = false
     end
 end)
-
 
 
 -- --- CAMERA & AVATAR LOCK ---
