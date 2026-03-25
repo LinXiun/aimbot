@@ -213,8 +213,38 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- Camera Lock
+-- RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
+	-- if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
+		-- Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, currentTarget.HumanoidRootPart.Position)
+	-- end
+-- end)
+-- REPLACING THE CAMERA LOCK SECTION
 RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
-	if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
-		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, currentTarget.HumanoidRootPart.Position)
-	end
+    if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
+        -- 1. Get Positions
+        local myPos = RootPart.Position
+        local enemyPos = currentTarget.HumanoidRootPart.Position
+        
+        -- 2. Calculate the direction AWAY from the enemy
+        -- This ensures you stay between the camera and the enemy
+        local directionAway = (myPos - enemyPos).Unit
+        
+        -- 3. Camera Settings (Adjust these to your liking)
+        local camDistance = 15 -- How far back the camera sits
+        local camHeight = 3    -- How high above your head it sits
+        
+        -- 4. Calculate the Orbit Position
+        local newCamPos = myPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
+        
+        -- 5. Apply the Camera LookAt
+        -- This forces the cam to ignore walls and look at the enemy
+        Camera.CameraType = Enum.CameraType.Scriptable
+        Camera.CFrame = CFrame.lookAt(newCamPos, enemyPos)
+    else
+        -- 6. Reset camera when not targeting
+        if Camera.CameraType ~= Enum.CameraType.Custom then
+            Camera.CameraType = Enum.CameraType.Custom
+        end
+    end
 end)
+
