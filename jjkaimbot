@@ -220,37 +220,35 @@ end)
 --end)
 
 RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
-    if aimbotEnabled and currentTarget and currentTarget.char:FindFirstChild("Head") then
+    -- FIXED: Removed '.char' because currentTarget is already the character model
+    if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Head") then
+        
         local myHeadPos = Character.Head.Position
-        local enemyHeadPos = currentTarget.char.Head.Position
-        
+        -- Using HumanoidRootPart for the enemy so you aim at their torso (better for combat)
+        local enemyBodyPos = currentTarget.HumanoidRootPart.Position
+
         -- 1. CALCULATE THE ACTUAL DISTANCE
-        local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyHeadPos.X, 0, enemyHeadPos.Z)).Magnitude
-        
+        local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyBodyPos.X, 0, enemyBodyPos.Z)).Magnitude
+
         -- 2. SAFE CHECK: ONLY CALCULATE DIRECTION IF NOT ON TOP OF THEM
         local directionAway
         if flatDist > 1.5 then
             -- Normal Orbiting
-            directionAway = (myHeadPos - enemyHeadPos).Unit
+            directionAway = (myHeadPos - enemyBodyPos).Unit
         else
             -- If too close, use the Camera's current "Look" direction 
             -- to prevent the spinning glitch
             directionAway = -Camera.CFrame.LookVector 
         end
-        
+
         -- 3. APPLY SETTINGS
         local camDistance = 12
-        local camHeight = 3 -- Staying at head level as requested
-        
+        local camHeight = 3 -- Height above your head
+
         local newCamPos = myHeadPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
-        
+
         -- 4. APPLY TRANSFORMATION
-        Camera.CameraType = Enum.CameraType.Scriptable
-        Camera.CFrame = CFrame.lookAt(newCamPos, enemyHeadPos)
-    else
-        if Camera.CameraType ~= Enum.CameraType.Custom then
-            Camera.CameraType = Enum.CameraType.Custom
-        end
+        -- Removed the Scriptable toggle. We just force the CFrame directly like in your working test!
+        Camera.CFrame = CFrame.lookAt(newCamPos, enemyBodyPos)
     end
 end)
-
