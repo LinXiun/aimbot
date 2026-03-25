@@ -11,7 +11,7 @@ local Camera = workspace.CurrentCamera
 
 -- --- CONFIGURATION ---
 local currentScale = 10
-local aimbotEnabled = false
+local aimbotEnabled = true
 local isMinimized = false
 local currentTarget = nil
 
