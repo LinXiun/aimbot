@@ -1,4 +1,4 @@
--- Roblox LocalScript: Final Optimized Ring, Outline & Camera Lock
+-- Roblox LocalScript: Fixed UI, Camera Lock, and Silhouette Outline
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -6,23 +6,22 @@ local UserInputService = game:GetService("UserInputService")
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local RootPart = Character:WaitForChild("HumanoidRootPart")
-local Humanoid = Character:WaitForChild("Humanoid")
+local Hum = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
 
--- --- CONFIG / STATE ---
+-- --- CONFIGURATION ---
 local currentScale = 10
 local aimbotEnabled = false
 local isMinimized = false
 local currentTarget = nil
-local dragging = false
 
 -- --- 1. THE FEET RING ---
 local Ring = Instance.new("Part")
-Ring.Name = "VisualRing"
-Ring.CanCollide = false
+Ring.Name = "FootRing"
+Ring.CanCollide, Ring.CanTouch, Ring.CanQuery = false, false, false
 Ring.Massless = true
 Ring.Size = Vector3.new(1, 1, 1)
-Ring.Transparency = 0.4
+Ring.Transparency = 0.3
 Ring.Color = Color3.fromRGB(255, 0, 0)
 Ring.Material = Enum.Material.Neon
 Ring.Parent = Character
@@ -36,155 +35,177 @@ Mesh.Parent = Ring
 local Weld = Instance.new("Weld")
 Weld.Part0 = RootPart
 Weld.Part1 = Ring
--- Uses HipHeight to stay exactly at floor level
-Weld.C0 = CFrame.new(0, -Humanoid.HipHeight - 1.5, 0) * CFrame.Angles(math.rad(90), 0, 0)
+-- Adjusted to sit exactly at feet level based on HipHeight
+Weld.C0 = CFrame.new(0, -Hum.HipHeight - 1.4, 0) * CFrame.Angles(math.rad(90), 0, 0)
 Weld.Parent = Ring
 
--- --- 2. TARGET OUTLINE ---
+-- --- 2. TARGET OUTLINE (SILHOUETTE) ---
 local Outline = Instance.new("Highlight")
-Outline.Name = "TargetOutline"
-Outline.FillTransparency = 1 -- Only the outline is visible
+Outline.FillTransparency = 1 
 Outline.OutlineColor = Color3.fromRGB(255, 0, 0)
 Outline.OutlineTransparency = 0
 Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 Outline.Enabled = false
-Outline.Parent = game.CoreGui
+Outline.Parent = Player:WaitForChild("PlayerGui") -- Better for Local scripts
 
--- --- 3. THE GUI (RESTRUCTURED) ---
-local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "RingSystem"
+-- --- 3. THE GUI (STABLE VERSION) ---
+local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
+ScreenGui.Name = "RingSystemFixed"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 200, 0, 120)
-MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 200, 0, 130)
+MainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.Active = true 
 MainFrame.ClipsDescendants = true
 
-local Corner = Instance.new("UICorner", MainFrame)
+local function makeDraggable(frame)
+	local dragging, dragInput, dragStart, startPos
+	frame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+makeDraggable(MainFrame)
 
--- TOP SECTION (Slider - Always Visible)
-local SliderContainer = Instance.new("Frame", MainFrame)
-SliderContainer.Size = UDim2.new(1, 0, 0, 50)
-SliderContainer.BackgroundTransparency = 1
+-- Scaler Frame (Always Stays)
+local ScalerFrame = Instance.new("Frame", MainFrame)
+ScalerFrame.Size = UDim2.new(1, 0, 0, 50)
+ScalerFrame.BackgroundTransparency = 1
 
-local SliderLabel = Instance.new("TextLabel", SliderContainer)
-SliderLabel.Size = UDim2.new(1, 0, 0, 20)
+local SliderLabel = Instance.new("TextLabel", ScalerFrame)
+SliderLabel.Size = UDim2.new(1, 0, 0, 25)
 SliderLabel.Text = "Range: " .. currentScale
 SliderLabel.TextColor3 = Color3.new(1, 1, 1)
 SliderLabel.BackgroundTransparency = 1
 
-local Track = Instance.new("Frame", SliderContainer)
+local Track = Instance.new("Frame", ScalerFrame)
 Track.Size = UDim2.new(0.8, 0, 0, 4)
 Track.Position = UDim2.new(0.1, 0, 0.7, 0)
 Track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 Track.BorderSizePixel = 0
 
 local Knob = Instance.new("TextButton", Track)
-Knob.Size = UDim2.new(0, 14, 0, 14)
+Knob.Size = UDim2.new(0, 18, 0, 18)
 Knob.AnchorPoint = Vector2.new(0.5, 0.5)
 Knob.Position = UDim2.new(0.3, 0, 0.5, 0)
 Knob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 Knob.Text = ""
 Instance.new("UICorner", Knob).CornerRadius = UDim.new(1, 0)
 
--- BOTTOM SECTION (Aimbot Toggle - Hides on Minimize)
+-- Content Frame (The part that minimizes)
 local Content = Instance.new("Frame", MainFrame)
-Content.Size = UDim2.new(1, 0, 0, 70)
+Content.Size = UDim2.new(1, 0, 0, 80)
 Content.Position = UDim2.new(0, 0, 0, 50)
 Content.BackgroundTransparency = 1
 
 local AimbotBtn = Instance.new("TextButton", Content)
-AimbotBtn.Size = UDim2.new(0.8, 0, 0, 30)
+AimbotBtn.Size = UDim2.new(0.8, 0, 0, 35)
 AimbotBtn.Position = UDim2.new(0.1, 0, 0.2, 0)
-AimbotBtn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
-AimbotBtn.TextColor3 = Color3.new(1, 1, 1)
+AimbotBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
 AimbotBtn.Text = "Aimbot: OFF"
+AimbotBtn.TextColor3 = Color3.new(1, 1, 1)
+AimbotBtn.ZIndex = 5 -- Ensure it stays on top
 Instance.new("UICorner", AimbotBtn)
 
--- MINIMIZE BUTTON
 local MinBtn = Instance.new("TextButton", MainFrame)
 MinBtn.Size = UDim2.new(0, 25, 0, 25)
 MinBtn.Position = UDim2.new(1, -30, 0, 5)
 MinBtn.Text = "-"
-MinBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MinBtn.ZIndex = 10
+MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 MinBtn.TextColor3 = Color3.new(1, 1, 1)
 
 -- --- 4. FUNCTIONALITY ---
 
--- Minimize Logic
-MinBtn.MouseButton1Click:Connect(function()
+-- Minimize Logic (Fixed)
+MinBtn.MouseButton1Down:Connect(function()
 	isMinimized = not isMinimized
 	if isMinimized then
-		MainFrame:TweenSize(UDim2.new(0, 200, 0, 50), "Out", "Quad", 0.2, true)
+		MainFrame.Size = UDim2.new(0, 200, 0, 50)
 		Content.Visible = false
 		MinBtn.Text = "+"
 	else
-		MainFrame:TweenSize(UDim2.new(0, 200, 0, 120), "Out", "Quad", 0.2, true)
+		MainFrame.Size = UDim2.new(0, 200, 0, 130)
 		Content.Visible = true
 		MinBtn.Text = "-"
 	end
 end)
 
--- Slider Logic
-Knob.MouseButton1Down:Connect(function() dragging = true end)
+-- Slider Logic (Global Tracking Fixed)
+local sliderDragging = false
+Knob.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliderDragging = true
+	end
+end)
+
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = false
+		sliderDragging = false
 	end
 end)
 
 RunService.RenderStepped:Connect(function()
-	if dragging then
-		local mouseX = UserInputService:GetMouseLocation().X
-		local trackX = Track.AbsolutePosition.X
-		local trackSize = Track.AbsoluteSize.X
-		local percentage = math.clamp((mouseX - trackX) / trackSize, 0, 1)
+	if sliderDragging then
+		local mousePos = UserInputService:GetMouseLocation().X
+		local trackPos = Track.AbsolutePosition.X
+		local trackWidth = Track.AbsoluteSize.X
+		local percentage = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
 		
 		Knob.Position = UDim2.new(percentage, 0, 0.5, 0)
-		currentScale = math.floor(4 + (percentage * 36)) -- Range 4 to 40
+		currentScale = math.floor(4 + (percentage * 36))
 		SliderLabel.Text = "Range: " .. currentScale
 		Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
 	end
 end)
 
--- Aimbot Toggle
-AimbotBtn.MouseButton1Click:Connect(function()
+-- Aimbot Toggle (Fixed for Mobile/PC)
+AimbotBtn.MouseButton1Down:Connect(function()
 	aimbotEnabled = not aimbotEnabled
 	AimbotBtn.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
-	AimbotBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(20, 70, 20) or Color3.fromRGB(60, 20, 20)
+	AimbotBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
 end)
 
--- Targeting Logic (Low HP > Distance)
+-- Targeting Logic
 RunService.Heartbeat:Connect(function()
-	local potentialTargets = {}
+	local targets = {}
 	local visualRadius = currentScale * 0.8
 	
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
 			local root = plr.Character:FindFirstChild("HumanoidRootPart")
-			if root then
+			if root and plr.Character.Humanoid.Health > 0 then
 				local dist = (RootPart.Position - root.Position).Magnitude
 				if dist <= visualRadius then
-					table.insert(potentialTargets, {
-						char = plr.Character,
-						hp = plr.Character.Humanoid.Health,
-						dist = dist
-					})
+					table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
 				end
 			end
 		end
 	end
 	
-	if #potentialTargets > 0 then
-		table.sort(potentialTargets, function(a, b)
+	if #targets > 0 then
+		table.sort(targets, function(a, b)
 			if a.hp ~= b.hp then return a.hp < b.hp end
 			return a.dist < b.dist
 		end)
-		currentTarget = potentialTargets[1].char
+		currentTarget = targets[1].char
 		Outline.Adornee = currentTarget
 		Outline.Enabled = true
 	else
@@ -193,11 +214,10 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
--- Camera Locking (High Priority Override)
-RunService:BindToRenderStep("AimbotLock", Enum.RenderPriority.Camera.Value + 1, function()
+-- Camera Lock (Force Override)
+RunService:BindToRenderStep("CameraLock", Enum.RenderPriority.Camera.Value + 1, function()
 	if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
 		local targetPos = currentTarget.HumanoidRootPart.Position
-		-- Forces the camera to look at the target's chest area
 		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPos)
 	end
 end)
