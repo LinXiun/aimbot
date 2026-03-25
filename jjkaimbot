@@ -275,7 +275,7 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
         local minThreshold = 8   
         local maxThreshold = 25  
         local collisionRange = 12 
-        local camHeight = 2
+        local camHeight = 6
 
         -- Avatar Lock
         local faceTarget = Vector3.new(enemyBodyPos.X, myRootPos.Y, enemyBodyPos.Z)
