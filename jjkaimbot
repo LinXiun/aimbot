@@ -1,9 +1,10 @@
 local CCTV_Position = nil -- Stores the tripod location
 
--- Roblox LocalScript: Auto-Aimbot, Super-Outline, and Fixed UI
+-- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService") -- Added for smooth toggle
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -75,25 +76,25 @@ MainFrame.Active = true
 MainFrame.ClipsDescendants = true
 
 local function makeDraggable(frame)
-        local dragging, dragStart, startPos
-        frame.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        dragging = true
-                        dragStart = input.Position
-                        startPos = frame.Position
-                end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                        local delta = input.Position - dragStart
-                        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-                end
-        end)
-        UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        dragging = false
-                end
-        end)
+    local dragging, dragStart, startPos
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
 end
 makeDraggable(MainFrame)
 
@@ -123,21 +124,35 @@ Knob.Text = ""
 Knob.ZIndex = 15
 Instance.new("UICorner", Knob).CornerRadius = UDim.new(1, 0)
 
--- Collapsible Content
+-- --- TOGGLE SWITCH SECTION ---
 local Content = Instance.new("Frame", MainFrame)
 Content.Size = UDim2.new(1, 0, 0, 80)
 Content.Position = UDim2.new(0, 0, 0, 50)
 Content.BackgroundTransparency = 1
 
-local AimbotBtn = Instance.new("TextButton", Content)
-AimbotBtn.Size = UDim2.new(0.8, 0, 0, 35)
-AimbotBtn.Position = UDim2.new(0.1, 0, 0.2, 0)
-AimbotBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
-AimbotBtn.Text = "Aimbot: ON"
-AimbotBtn.TextColor3 = Color3.new(1, 1, 1)
-AimbotBtn.ZIndex = 5
-Instance.new("UICorner", AimbotBtn)
+local ToggleLabel = Instance.new("TextLabel", Content)
+ToggleLabel.Size = UDim2.new(0.5, 0, 0, 35)
+ToggleLabel.Position = UDim2.new(0.1, 0, 0.2, 0)
+ToggleLabel.Text = "Aimbot"
+ToggleLabel.TextColor3 = Color3.new(1, 1, 1)
+ToggleLabel.BackgroundTransparency = 1
+ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
+local ToggleBG = Instance.new("TextButton", Content)
+ToggleBG.Size = UDim2.new(0, 50, 0, 25)
+ToggleBG.Position = UDim2.new(0.65, 0, 0.25, 0)
+ToggleBG.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
+ToggleBG.Text = ""
+Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
+
+local ToggleKnob = Instance.new("Frame", ToggleBG)
+ToggleKnob.Size = UDim2.new(0, 21, 0, 21)
+ToggleKnob.Position = UDim2.new(0.55, 0, 0.5, 0) -- Start at ON position
+ToggleKnob.AnchorPoint = Vector2.new(0, 0.5)
+ToggleKnob.BackgroundColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", ToggleKnob).CornerRadius = UDim.new(1, 0)
+
+-- Minimize Button
 local MinBtn = Instance.new("TextButton", MainFrame)
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -35, 0, 5)
@@ -149,79 +164,87 @@ Instance.new("UICorner", MinBtn)
 
 -- --- 4. LOGIC ---
 
+local function updateToggle()
+    local targetPos = aimbotEnabled and UDim2.new(0.55, 0, 0.5, 0) or UDim2.new(0.05, 0, 0.5, 0)
+    local targetColor = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
+    
+    TweenService:Create(ToggleKnob, TweenInfo.new(0.2), {Position = targetPos}):Play()
+    TweenService:Create(ToggleBG, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
+end
+
+ToggleBG.MouseButton1Down:Connect(function()
+    aimbotEnabled = not aimbotEnabled
+    updateToggle()
+end)
+
 MinBtn.MouseButton1Down:Connect(function()
-        isMinimized = not isMinimized
-        if isMinimized then
-                MainFrame.Size = UDim2.new(0, 200, 0, 50)
-                Content.Visible = false
-                MinBtn.Text = "+"
-        else
-                MainFrame.Size = UDim2.new(0, 200, 0, 130)
-                Content.Visible = true
-                MinBtn.Text = "-"
-        end
+    isMinimized = not isMinimized
+    if isMinimized then
+        MainFrame.Size = UDim2.new(0, 200, 0, 50)
+        Content.Visible = false
+        MinBtn.Text = "+"
+    else
+        MainFrame.Size = UDim2.new(0, 200, 0, 130)
+        Content.Visible = true
+        MinBtn.Text = "-"
+    end
 end)
 
-AimbotBtn.MouseButton1Down:Connect(function()
-        aimbotEnabled = not aimbotEnabled
-        AimbotBtn.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
-        AimbotBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
-end)
-
+-- Slider Fix
 local sliderDragging = false
 Knob.MouseButton1Down:Connect(function() sliderDragging = true end)
 UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                sliderDragging = false
-        end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        sliderDragging = false
+    end
 end)
 
 RunService.RenderStepped:Connect(function()
-        if sliderDragging then
-                local mousePos = UserInputService:GetMouseLocation().X
-                local trackPos = Track.AbsolutePosition.X
-                local trackWidth = Track.AbsoluteSize.X
-                local percentage = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
+    if sliderDragging then
+        local mousePos = UserInputService:GetMouseLocation().X
+        local trackPos = Track.AbsolutePosition.X
+        local trackWidth = Track.AbsoluteSize.X
+        local percentage = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
 
-                Knob.Position = UDim2.new(percentage, 0, 0.5, 0)
-                currentScale = math.floor(4 + (percentage * 46)) 
-                SliderLabel.Text = "Range: " .. currentScale
-                Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
-        end
+        Knob.Position = UDim2.new(percentage, 0, 0.5, 0)
+        currentScale = math.floor(4 + (percentage * 46)) 
+        SliderLabel.Text = "Range: " .. currentScale
+        Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
+    end
 end)
 
 -- Targeting
 RunService.Heartbeat:Connect(function()
-        local targets = {}
-        local visualRadius = currentScale * 0.8
+    local targets = {}
+    local visualRadius = currentScale * 0.8
 
-        for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-                        local root = plr.Character:FindFirstChild("HumanoidRootPart")
-                        if root and plr.Character.Humanoid.Health > 0 then
-                                local dist = (RootPart.Position - root.Position).Magnitude
-                                if dist <= visualRadius then
-                                        table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
-                                end
-                        end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+            local root = plr.Character:FindFirstChild("HumanoidRootPart")
+            if root and plr.Character.Humanoid.Health > 0 then
+                local dist = (RootPart.Position - root.Position).Magnitude
+                if dist <= visualRadius then
+                    table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
                 end
+            end
         end
+    end
 
-        if #targets > 0 then
-                table.sort(targets, function(a, b)
-                        if a.hp ~= b.hp then return a.hp < b.hp end
-                        return a.dist < b.dist
-                end)
-                currentTarget = targets[1].char
-                Outline.Adornee = currentTarget
-                Outline.Enabled = true
-        else
-                currentTarget = nil
-                Outline.Enabled = false
-        end
+    if #targets > 0 then
+        table.sort(targets, function(a, b)
+            if a.hp ~= b.hp then return a.hp < b.hp end
+            return a.dist < b.dist
+        end)
+        currentTarget = targets[1].char
+        Outline.Adornee = currentTarget
+        Outline.Enabled = true
+    else
+        currentTarget = nil
+        Outline.Enabled = false
+    end
 end)
 
--- --- SMART CAMERA & AVATAR LOCK ---
+-- --- CAMERA & AVATAR LOCK ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
     if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Head") then
 
@@ -240,12 +263,11 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
         local collisionRange = 12 
         local camHeight = 2
 
-        -- 1. AVATAR LOCK (Face the enemy)
-        -- We use a Vector3 that matches your Y height so your character stays upright
+        -- AVATAR LOCK
         local faceTarget = Vector3.new(enemyBodyPos.X, myRootPos.Y, enemyBodyPos.Z)
         RootPart.CFrame = CFrame.lookAt(myRootPos, faceTarget)
 
-        -- 2. CAMERA LOGIC
+        -- CAMERA LOGIC
         if flatDist > collisionRange then
             CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
         else
