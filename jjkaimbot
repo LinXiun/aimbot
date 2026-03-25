@@ -62,20 +62,22 @@ Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 Outline.Enabled = false
 Outline.Parent = game.CoreGui 
 
--- --- 3. THE ULTRA-MINIMAL GUI ---
+-- --- 3. THE ULTRA-MINIMAL GUI (TOGGLE + HEALTH) ---
 local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "MinimalRingUI"
 ScreenGui.ResetOnSpawn = false
 
--- The only visible container (Transparent)
+-- Minimal Container
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 60, 0, 35) -- Small box just for the switch
+MainFrame.Size = UDim2.new(0, 110, 0, 35) -- Slightly wider to fit text
 MainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
-MainFrame.BackgroundTransparency = 1 -- Hidden background
+MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+MainFrame.BackgroundTransparency = 0.4 -- Seamless glass look
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
--- Keep it draggable so you can move the switch anywhere
+-- Draggable Logic
 local function makeDraggable(frame)
     local dragging, dragStart, startPos
     frame.InputBegan:Connect(function(input)
@@ -99,27 +101,38 @@ local function makeDraggable(frame)
 end
 makeDraggable(MainFrame)
 
--- THE TOGGLE SWITCH
+-- THE TOGGLE SWITCH (Left Side)
 local ToggleBG = Instance.new("TextButton", MainFrame)
-ToggleBG.Size = UDim2.new(0, 50, 0, 25)
-ToggleBG.Position = UDim2.new(0.5, 0, 0.5, 0)
-ToggleBG.AnchorPoint = Vector2.new(0.5, 0.5)
+ToggleBG.Size = UDim2.new(0, 40, 0, 20)
+ToggleBG.Position = UDim2.new(0.05, 0, 0.5, 0)
+ToggleBG.AnchorPoint = Vector2.new(0, 0.5)
 ToggleBG.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
 ToggleBG.Text = ""
 Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
 
 local ToggleKnob = Instance.new("Frame", ToggleBG)
-ToggleKnob.Size = UDim2.new(0, 21, 0, 21)
+ToggleKnob.Size = UDim2.new(0, 16, 0, 16)
 ToggleKnob.Position = UDim2.new(0.55, 0, 0.5, 0) 
 ToggleKnob.AnchorPoint = Vector2.new(0, 0.5)
 ToggleKnob.BackgroundColor3 = Color3.new(1, 1, 1)
 Instance.new("UICorner", ToggleKnob).CornerRadius = UDim.new(1, 0)
 
--- --- 4. LOGIC (MINIMAL) ---
+-- THE HEALTH DISPLAY (Right Side)
+local HealthDisplay = Instance.new("TextLabel", MainFrame)
+HealthDisplay.Size = UDim2.new(0, 50, 1, 0)
+HealthDisplay.Position = UDim2.new(0.5, 0, 0, 0)
+HealthDisplay.BackgroundTransparency = 1
+HealthDisplay.Text = "100%"
+HealthDisplay.TextColor3 = Color3.new(1, 1, 1)
+HealthDisplay.Font = Enum.Font.GothamBold
+HealthDisplay.TextSize = 14
+HealthDisplay.TextXAlignment = Enum.TextXAlignment.Right
+
+-- --- 4. LOGIC ---
+
 local function updateToggle()
     local targetPos = aimbotEnabled and UDim2.new(0.55, 0, 0.5, 0) or UDim2.new(0.05, 0, 0.5, 0)
     local targetColor = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
-    
     TweenService:Create(ToggleKnob, TweenInfo.new(0.2), {Position = targetPos}):Play()
     TweenService:Create(ToggleBG, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
 end
@@ -129,38 +142,46 @@ ToggleBG.MouseButton1Down:Connect(function()
     updateToggle()
 end)
 
-
--- Targeting (FIXED RANGE MATCH)
+-- Targeting Loop with GUI Health Update
 RunService.Heartbeat:Connect(function()
     local targets = {}
-    -- Use half the scale because magnitude is radius, while mesh scale is diameter
     local actualRadius = currentScale / 2 
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            local root = plr.Character:FindFirstChild("HumanoidRootPart")
-            if root and plr.Character.Humanoid.Health > 0 then
-                local dist = (RootPart.Position - root.Position).Magnitude
-                
-                -- Now matches the visual edge of the ring
-                if dist <= actualRadius then 
-                    table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
+            -- Marker Check
+            local hasV = plr.Character:FindFirstChildWhichIsA("BillboardGui", true)
+            if not hasV then
+                local root = plr.Character:FindFirstChild("HumanoidRootPart")
+                if root and plr.Character.Humanoid.Health > 0 then
+                    local dist = (RootPart.Position - root.Position).Magnitude
+                    if dist <= actualRadius then
+                        table.insert(targets, {char = plr.Character, hum = plr.Character.Humanoid, dist = dist})
+                    end
                 end
             end
         end
     end
 
     if #targets > 0 then
-        table.sort(targets, function(a, b)
-            if a.hp ~= b.hp then return a.hp < b.hp end
-            return a.dist < b.dist
-        end)
+        table.sort(targets, function(a, b) return a.dist < b.dist end)
         currentTarget = targets[1].char
+        local hum = targets[1].hum
+        
+        -- Update Highlight
         Outline.Adornee = currentTarget
         Outline.Enabled = true
+        
+        -- Update GUI Health Text
+        local hpPercent = math.floor((hum.Health / hum.MaxHealth) * 100)
+        HealthDisplay.Text = hpPercent .. "%"
+        HealthDisplay.TextColor3 = Color3.fromHSV(hpPercent/300, 0.8, 1) -- Shifts Green -> Red
     else
         currentTarget = nil
+        Outline.Adornee = nil
         Outline.Enabled = false
+        HealthDisplay.Text = "---"
+        HealthDisplay.TextColor3 = Color3.new(0.5, 0.5, 0.5)
     end
 end)
 
