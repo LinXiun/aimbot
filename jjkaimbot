@@ -213,23 +213,34 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Targeting
+-- Targeting (With Universal Team Check)
 RunService.Heartbeat:Connect(function()
     local targets = {}
     local visualRadius = currentScale * 0.8
 
     for _, plr in ipairs(Players:GetPlayers()) do
+        -- 1. Check if the player is not you and has a valid character
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            local root = plr.Character:FindFirstChild("HumanoidRootPart")
-            if root and plr.Character.Humanoid.Health > 0 then
-                local dist = (RootPart.Position - root.Position).Magnitude
-                if dist <= visualRadius then
-                    table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
+            
+            -- 2. UNIVERSAL TEAM CHECK
+            -- Checks if teams are the same, while ignoring if both are "Neutral" (nil)
+            local isTeammate = (plr.Team == Player.Team and plr.Team ~= nil) or (plr.TeamColor == Player.TeamColor)
+            
+            if not isTeammate then
+                local root = plr.Character:FindFirstChild("HumanoidRootPart")
+                
+                -- 3. Check Health and Distance
+                if root and plr.Character.Humanoid.Health > 0 then
+                    local dist = (RootPart.Position - root.Position).Magnitude
+                    if dist <= visualRadius then
+                        table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
+                    end
                 end
             end
         end
     end
 
+    -- 4. Target Selection (Priority: Lowest Health, then Closest Distance)
     if #targets > 0 then
         table.sort(targets, function(a, b)
             if a.hp ~= b.hp then return a.hp < b.hp end
@@ -243,6 +254,7 @@ RunService.Heartbeat:Connect(function()
         Outline.Enabled = false
     end
 end)
+
 
 -- --- CAMERA & AVATAR LOCK ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
