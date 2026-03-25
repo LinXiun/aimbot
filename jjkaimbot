@@ -10,7 +10,7 @@ local Hum = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
 
 -- --- CONFIGURATION ---
-local currentScale = 12
+local currentScale = 120
 local aimbotEnabled = true -- Now ON by default
 local isMinimized = false
 local currentTarget = nil
@@ -212,9 +212,45 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
--- Camera Lock
+-- Camera Lock working
+--RunService:BindToRenderStep("FinalLock", --Enum.RenderPriority.Camera.Value + 1, function()
+--	if aimbotEnabled and currentTarget and --currentTarget:FindFirstChild("HumanoidRootPart") then
+--		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, --  currentTarget.HumanoidRootPart.Position)
+--	end
+--end)
+
 RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
-	if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
-		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, currentTarget.HumanoidRootPart.Position)
-	end
+    if aimbotEnabled and currentTarget and currentTarget.char:FindFirstChild("Head") then
+        local myHeadPos = Character.Head.Position
+        local enemyHeadPos = currentTarget.char.Head.Position
+        
+        -- 1. CALCULATE THE ACTUAL DISTANCE
+        local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyHeadPos.X, 0, enemyHeadPos.Z)).Magnitude
+        
+        -- 2. SAFE CHECK: ONLY CALCULATE DIRECTION IF NOT ON TOP OF THEM
+        local directionAway
+        if flatDist > 1.5 then
+            -- Normal Orbiting
+            directionAway = (myHeadPos - enemyHeadPos).Unit
+        else
+            -- If too close, use the Camera's current "Look" direction 
+            -- to prevent the spinning glitch
+            directionAway = -Camera.CFrame.LookVector 
+        end
+        
+        -- 3. APPLY SETTINGS
+        local camDistance = 12
+        local camHeight = 3 -- Staying at head level as requested
+        
+        local newCamPos = myHeadPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
+        
+        -- 4. APPLY TRANSFORMATION
+        Camera.CameraType = Enum.CameraType.Scriptable
+        Camera.CFrame = CFrame.lookAt(newCamPos, enemyHeadPos)
+    else
+        if Camera.CameraType ~= Enum.CameraType.Custom then
+            Camera.CameraType = Enum.CameraType.Custom
+        end
+    end
 end)
+
