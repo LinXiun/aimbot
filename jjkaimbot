@@ -1,4 +1,4 @@
--- Roblox LocalScript: Stabilized Ring, Targeting, Slider GUI, & Aimbot
+-- Roblox LocalScript: Fixed Ring, Outline Targeting, Slider & Camera Lock
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -10,24 +10,23 @@ local Camera = workspace.CurrentCamera
 
 -- --- CONFIGURATION ---
 local MIN_SCALE = 4
-local MAX_SCALE = 25
-local currentScale = 8
+local MAX_SCALE = 30
+local currentScale = 10
 local RING_Y_OFFSET = -3
 local aimbotEnabled = false
-local currentTarget = nil -- Stores the player currently being targeted
+local currentTarget = nil
 
--- --- 1. THE RING (FIXED PHYSICS) ---
+-- --- 1. THE RING (PHYSICS FIXED) ---
 local Ring = Instance.new("Part")
-Ring.Name = "VisualRing"
+Ring.Name = "FootRing"
 Ring.CanCollide = false
 Ring.CanTouch = false
 Ring.CanQuery = false
 Ring.Massless = true
-Ring.Anchored = false
 Ring.Size = Vector3.new(1, 1, 1)
 Ring.Material = Enum.Material.Neon
 Ring.Color = Color3.fromRGB(255, 0, 0)
-Ring.Transparency = 0.2
+Ring.Transparency = 0.3
 Ring.Parent = Character
 
 local Mesh = Instance.new("SpecialMesh")
@@ -42,199 +41,164 @@ Weld.Part1 = Ring
 Weld.C0 = CFrame.new(0, RING_Y_OFFSET, 0) * CFrame.Angles(math.rad(90), 0, 0)
 Weld.Parent = Ring
 
--- --- 2. THE HIGHLIGHT (TARGETING) ---
-local TargetHighlight = Instance.new("Highlight")
-TargetHighlight.FillTransparency = 0.5
-TargetHighlight.FillColor = Color3.fromRGB(255, 0, 0)
-TargetHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-TargetHighlight.Enabled = false
-TargetHighlight.Parent = game.CoreGui
+-- --- 2. THE OUTLINE (NOT HIGHLIGHT) ---
+local TargetOutline = Instance.new("Highlight")
+TargetOutline.FillTransparency = 1 -- Makes the inside clear (Outline Only)
+TargetOutline.OutlineColor = Color3.fromRGB(255, 0, 0)
+TargetOutline.OutlineTransparency = 0
+TargetOutline.Enabled = false
+TargetOutline.Parent = game.CoreGui -- Persistent
 
 -- --- 3. THE REFINED GUI ---
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RingUI"
+ScreenGui.Name = "RingSystemUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = Player:WaitForChild("PlayerGui")
 
--- Main Container (Fixed Minimizer Bug)
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 220, 0, 130)
-MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.Size = UDim2.new(0, 220, 0, 140)
+MainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.ClipsDescendants = true -- FIX: Hides elements when minimized
+MainFrame.ClipsDescendants = true -- Crucial for minimizing
 MainFrame.Parent = ScreenGui
 
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = MainFrame
 
--- --- SLIDER SECTION (Always Visible) ---
+-- Scaler Section (Always Visible)
 local SliderFrame = Instance.new("Frame")
-SliderFrame.Size = UDim2.new(1, -40, 0, 40)
-SliderFrame.Position = UDim2.new(0, 10, 0, 10)
+SliderFrame.Size = UDim2.new(1, 0, 0, 50)
 SliderFrame.BackgroundTransparency = 1
 SliderFrame.Parent = MainFrame
 
 local SliderLabel = Instance.new("TextLabel")
-SliderLabel.Size = UDim2.new(1, 0, 0, 15)
+SliderLabel.Size = UDim2.new(1, 0, 0, 20)
+SliderLabel.Position = UDim2.new(0, 0, 0, 5)
 SliderLabel.Text = "Ring Size: " .. currentScale
 SliderLabel.TextColor3 = Color3.new(1, 1, 1)
 SliderLabel.BackgroundTransparency = 1
-SliderLabel.TextSize = 14
 SliderLabel.Parent = SliderFrame
 
 local SliderTrack = Instance.new("Frame")
-SliderTrack.Size = UDim2.new(1, 0, 0, 6)
-SliderTrack.Position = UDim2.new(0, 0, 0.7, 0)
+SliderTrack.Size = UDim2.new(0.8, 0, 0, 4)
+SliderTrack.Position = UDim2.new(0.1, 0, 0, 35)
 SliderTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 SliderTrack.BorderSizePixel = 0
 SliderTrack.Parent = SliderFrame
 
--- FIX: Centered anchor point stops the knob from disappearing
 local SliderKnob = Instance.new("TextButton")
 SliderKnob.Size = UDim2.new(0, 16, 0, 16)
-SliderKnob.AnchorPoint = Vector2.new(0.5, 0.5) 
+SliderKnob.AnchorPoint = Vector2.new(0.5, 0.5)
 SliderKnob.Position = UDim2.new(0.2, 0, 0.5, 0)
 SliderKnob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 SliderKnob.Text = ""
 SliderKnob.Parent = SliderTrack
+Instance.new("UICorner", SliderKnob).CornerRadius = UDim.new(1, 0)
 
-local KnobCorner = Instance.new("UICorner")
-KnobCorner.CornerRadius = UDim.new(1, 0)
-KnobCorner.Parent = SliderKnob
+-- Collapsible Content
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, 0, 0, 90)
+ContentFrame.Position = UDim2.new(0, 0, 0, 50)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
 
--- --- CONTENT SECTION (Minimizable) ---
-local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, 0, 0, 80)
-Content.Position = UDim2.new(0, 0, 0, 50)
-Content.BackgroundTransparency = 1
-Content.Parent = MainFrame
-
-local Info = Instance.new("TextLabel")
-Info.Size = UDim2.new(1, 0, 0, 20)
-Info.Position = UDim2.new(0, 0, 0, 0)
-Info.Text = "Targeting: Low HP > Nearest"
-Info.TextColor3 = Color3.fromRGB(150, 150, 150)
-Info.TextSize = 12
-Info.BackgroundTransparency = 1
-Info.Parent = Content
-
--- Aimbot Toggle Button
 local AimbotBtn = Instance.new("TextButton")
-AimbotBtn.Size = UDim2.new(0.8, 0, 0, 30)
-AimbotBtn.Position = UDim2.new(0.1, 0, 0, 30)
-AimbotBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+AimbotBtn.Size = UDim2.new(0.8, 0, 0, 35)
+AimbotBtn.Position = UDim2.new(0.1, 0, 0, 10)
+AimbotBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
 AimbotBtn.Text = "Aimbot: OFF"
 AimbotBtn.TextColor3 = Color3.new(1, 1, 1)
-AimbotBtn.Font = Enum.Font.SourceSansBold
-AimbotBtn.Parent = Content
+AimbotBtn.Parent = ContentFrame
+Instance.new("UICorner", AimbotBtn)
 
-local AimbotCorner = Instance.new("UICorner")
-AimbotCorner.CornerRadius = UDim.new(0, 6)
-AimbotCorner.Parent = AimbotBtn
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+MinimizeBtn.Position = UDim2.new(1, -30, 0, 5)
+MinimizeBtn.Text = "-"
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MinimizeBtn.TextColor3 = Color3.new(1, 1, 1)
+MinimizeBtn.Parent = MainFrame
 
--- --- MINIMIZE BUTTON ---
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 30, 0, 20)
-MinBtn.Position = UDim2.new(1, -35, 0, 5)
-MinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-MinBtn.Text = "_"
-MinBtn.TextColor3 = Color3.new(1, 1, 1)
-MinBtn.Parent = MainFrame
+-- --- 4. LOGIC ---
 
--- --- 4. UI LOGIC ---
-
--- Minimizer Logic
-local isMinimized = false
-MinBtn.MouseButton1Click:Connect(function()
-	isMinimized = not isMinimized
-	MainFrame.Size = isMinimized and UDim2.new(0, 220, 0, 50) or UDim2.new(0, 220, 0, 130)
-	MinBtn.Text = isMinimized and "+" or "_"
-end)
-
--- Aimbot Toggle Logic
-AimbotBtn.MouseButton1Click:Connect(function()
-	aimbotEnabled = not aimbotEnabled
-	if aimbotEnabled then
-		AimbotBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-		AimbotBtn.Text = "Aimbot: ON"
-	else
-		AimbotBtn.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
-		AimbotBtn.Text = "Aimbot: OFF"
-	end
-end)
-
--- Slider Logic (Fixed for Mobile/PC stability)
-local dragging = false
-SliderKnob.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-	end
-end)
+-- Improved Slider Dragging
+local isDragging = false
+SliderKnob.MouseButton1Down:Connect(function() isDragging = true end)
 
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = false
+		isDragging = false
 	end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-		local mousePos = input.Position.X
-		local trackPos = SliderTrack.AbsolutePosition.X
+RunService.RenderStepped:Connect(function()
+	if isDragging then
+		local inputPos = UserInputService:GetMouseLocation().X
+		local trackAbsPos = SliderTrack.AbsolutePosition.X
 		local trackSize = SliderTrack.AbsoluteSize.X
-		local percentage = math.clamp((mousePos - trackPos) / trackSize, 0, 1)
+		local relPos = math.clamp((inputPos - trackAbsPos) / trackSize, 0, 1)
 		
-		SliderKnob.Position = UDim2.new(percentage, 0, 0.5, 0)
-		currentScale = math.floor(MIN_SCALE + (percentage * (MAX_SCALE - MIN_SCALE)))
+		SliderKnob.Position = UDim2.new(relPos, 0, 0.5, 0)
+		currentScale = math.floor(MIN_SCALE + (relPos * (MAX_SCALE - MIN_SCALE)))
 		SliderLabel.Text = "Ring Size: " .. currentScale
 		Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
 	end
 end)
 
--- --- 5. TARGETING & AIMBOT LOGIC ---
+-- Minimize Logic
+local minimized = false
+MinimizeBtn.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	MainFrame.Size = minimized and UDim2.new(0, 220, 0, 50) or UDim2.new(0, 220, 0, 140)
+	ContentFrame.Visible = not minimized
+	MinimizeBtn.Text = minimized and "+" or "-"
+end)
+
+-- Aimbot Toggle
+AimbotBtn.MouseButton1Click:Connect(function()
+	aimbotEnabled = not aimbotEnabled
+	AimbotBtn.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
+	AimbotBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(80, 0, 0)
+end)
+
+-- Targeting & Aimbot Loop
 RunService.Heartbeat:Connect(function()
-	local potentialTargets = {}
+	local targets = {}
 	local ringRadius = (currentScale * 0.8)
 	
 	for _, otherPlayer in ipairs(Players:GetPlayers()) do
 		if otherPlayer ~= Player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Humanoid") then
-			local targetRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
-			if targetRoot then
-				local dist = (RootPart.Position - targetRoot.Position).Magnitude
+			local tRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if tRoot then
+				local dist = (RootPart.Position - tRoot.Position).Magnitude
 				if dist <= ringRadius then
-					table.insert(potentialTargets, {
-						char = otherPlayer.Character,
-						hp = otherPlayer.Character.Humanoid.Health,
-						dist = dist
-					})
+					table.insert(targets, {char = otherPlayer.Character, hp = otherPlayer.Character.Humanoid.Health, dist = dist})
 				end
 			end
 		end
 	end
 	
-	if #potentialTargets > 0 then
-		table.sort(potentialTargets, function(a, b)
+	if #targets > 0 then
+		table.sort(targets, function(a, b)
 			if a.hp ~= b.hp then return a.hp < b.hp end
 			return a.dist < b.dist
 		end)
-		
-		currentTarget = potentialTargets[1].char
-		TargetHighlight.Adornee = currentTarget
-		TargetHighlight.Enabled = true
+		currentTarget = targets[1].char
+		TargetOutline.Adornee = currentTarget
+		TargetOutline.Enabled = true
 	else
 		currentTarget = nil
-		TargetHighlight.Enabled = false
+		TargetOutline.Enabled = false
 	end
 end)
 
--- Camera Lock (Aimbot)
+-- Camera Lock Logic (RenderStepped is required to override default camera)
 RunService.RenderStepped:Connect(function()
 	if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
-		local targetPos = currentTarget.HumanoidRootPart.Position
-		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPos)
+		local lookTarget = currentTarget.HumanoidRootPart.Position
+		Camera.CFrame = CFrame.new(Camera.CFrame.Position, lookTarget)
 	end
 end)
