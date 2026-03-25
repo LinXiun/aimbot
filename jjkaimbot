@@ -1,10 +1,10 @@
-local CCTV_Position = nil -- Stores the tripod location
+local CCTV_Position = nil 
 
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService") -- Added for smooth toggle
+local TweenService = game:GetService("TweenService") 
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -23,9 +23,8 @@ MyHighlight.OutlineTransparency = 0
 MyHighlight.Parent = Character
 
 -- --- CONFIGURATION ---
-local currentScale = 120
+local currentScale = 120 
 local aimbotEnabled = true 
-local isMinimized = false
 local currentTarget = nil
 
 -- --- 1. THE FEET RING ---
@@ -40,7 +39,6 @@ Ring.Material = Enum.Material.Neon
 Ring.Parent = Character
 
 local Mesh = Instance.new("SpecialMesh")
-Mesh.MeshType = Enum.MeshType.FileMesh
 Mesh.MeshId = "rbxassetid://3270017"
 Mesh.Scale = Vector3.new(currentScale, currentScale, 0.5)
 Mesh.Parent = Ring
@@ -51,33 +49,20 @@ Weld.Part1 = Ring
 Weld.C0 = CFrame.new(0, -Hum.HipHeight - 1.4, 0) * CFrame.Angles(math.rad(90), 0, 0)
 Weld.Parent = Ring
 
--- --- 2. THE SUPER OBVIOUS OUTLINE ---
-local Outline = Instance.new("Highlight")
-Outline.Name = "SuperOutline"
-Outline.FillColor = Color3.fromRGB(255, 0, 0)
-Outline.FillTransparency = 0.5 
-Outline.OutlineColor = Color3.fromRGB(255, 0, 0)
-Outline.OutlineTransparency = 0
-Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
-Outline.Enabled = false
-Outline.Parent = game.CoreGui 
-
--- --- 3. THE ULTRA-MINIMAL GUI (TOGGLE + HEALTH) ---
+-- --- 2. THE ULTRA-MINIMAL GUI ---
 local ScreenGui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "MinimalRingUI"
 ScreenGui.ResetOnSpawn = false
 
--- Minimal Container
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 110, 0, 35) -- Slightly wider to fit text
+MainFrame.Size = UDim2.new(0, 110, 0, 35) 
 MainFrame.Position = UDim2.new(0.1, 0, 0.4, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-MainFrame.BackgroundTransparency = 0.4 -- Seamless glass look
+MainFrame.BackgroundTransparency = 0.4 
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
--- Draggable Logic
 local function makeDraggable(frame)
     local dragging, dragStart, startPos
     frame.InputBegan:Connect(function(input)
@@ -101,7 +86,7 @@ local function makeDraggable(frame)
 end
 makeDraggable(MainFrame)
 
--- THE TOGGLE SWITCH (Left Side)
+-- TOGGLE SWITCH
 local ToggleBG = Instance.new("TextButton", MainFrame)
 ToggleBG.Size = UDim2.new(0, 40, 0, 20)
 ToggleBG.Position = UDim2.new(0.05, 0, 0.5, 0)
@@ -117,19 +102,29 @@ ToggleKnob.AnchorPoint = Vector2.new(0, 0.5)
 ToggleKnob.BackgroundColor3 = Color3.new(1, 1, 1)
 Instance.new("UICorner", ToggleKnob).CornerRadius = UDim.new(1, 0)
 
--- THE HEALTH DISPLAY (Right Side)
+-- HEALTH DISPLAY
 local HealthDisplay = Instance.new("TextLabel", MainFrame)
 HealthDisplay.Size = UDim2.new(0, 50, 1, 0)
 HealthDisplay.Position = UDim2.new(0.5, 0, 0, 0)
 HealthDisplay.BackgroundTransparency = 1
-HealthDisplay.Text = "100%"
-HealthDisplay.TextColor3 = Color3.new(1, 1, 1)
+HealthDisplay.Text = "---"
+HealthDisplay.TextColor3 = Color3.new(0.5, 0.5, 0.5)
 HealthDisplay.Font = Enum.Font.GothamBold
 HealthDisplay.TextSize = 14
 HealthDisplay.TextXAlignment = Enum.TextXAlignment.Right
 
--- --- 4. LOGIC ---
+-- ENEMY HIGHLIGHT
+local Outline = Instance.new("Highlight")
+Outline.Name = "EnemyTracker"
+Outline.FillColor = Color3.fromRGB(255, 0, 0)
+Outline.FillTransparency = 0.5 
+Outline.OutlineColor = Color3.fromRGB(255, 255, 255) 
+Outline.OutlineTransparency = 0
+Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
+Outline.Enabled = false
+Outline.Parent = ScreenGui 
 
+-- --- 3. LOGIC ---
 local function updateToggle()
     local targetPos = aimbotEnabled and UDim2.new(0.55, 0, 0.5, 0) or UDim2.new(0.05, 0, 0.5, 0)
     local targetColor = aimbotEnabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(100, 0, 0)
@@ -142,45 +137,50 @@ ToggleBG.MouseButton1Down:Connect(function()
     updateToggle()
 end)
 
--- Targeting (FIXED RANGE MATCH)
+-- --- 4. TARGETING LOOP (NO TEAM CHECK) ---
 RunService.Heartbeat:Connect(function()
     local targets = {}
-    -- Use half the scale because magnitude is radius, while mesh scale is diameter
     local actualRadius = currentScale / 2 
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= Player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            local root = plr.Character:FindFirstChild("HumanoidRootPart")
-            if root and plr.Character.Humanoid.Health > 0 then
+            local char = plr.Character
+            local root = char:FindFirstChild("HumanoidRootPart")
+            
+            -- Targets every other player in range
+            if root and char.Humanoid.Health > 0 then
                 local dist = (RootPart.Position - root.Position).Magnitude
-                
-                -- Now matches the visual edge of the ring
-                if dist <= actualRadius then 
-                    table.insert(targets, {char = plr.Character, hp = plr.Character.Humanoid.Health, dist = dist})
+                if dist <= actualRadius then
+                    table.insert(targets, {char = char, hum = char.Humanoid, dist = dist})
                 end
             end
         end
     end
 
     if #targets > 0 then
-        table.sort(targets, function(a, b)
-            if a.hp ~= b.hp then return a.hp < b.hp end
-            return a.dist < b.dist
-        end)
+        table.sort(targets, function(a, b) return a.dist < b.dist end)
         currentTarget = targets[1].char
+        local hum = targets[1].hum
+        
         Outline.Adornee = currentTarget
         Outline.Enabled = true
+        
+        -- Update GUI Health Text
+        local hpPercent = math.floor((hum.Health / hum.MaxHealth) * 100)
+        HealthDisplay.Text = hpPercent .. "%"
+        HealthDisplay.TextColor3 = Color3.fromHSV(hpPercent/300, 0.8, 1)
     else
         currentTarget = nil
+        Outline.Adornee = nil
         Outline.Enabled = false
+        HealthDisplay.Text = "---"
+        HealthDisplay.TextColor3 = Color3.new(0.5, 0.5, 0.5)
     end
 end)
 
-
--- --- CAMERA & AVATAR LOCK ---
+-- --- 5. CAMERA & AVATAR LOCK ---
 RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value + 1, function()
     if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Head") then
-
         workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
 
         local myHeadPos = Character.Head.Position
@@ -189,7 +189,6 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
         local directionAway = (myHeadPos - enemyBodyPos).Unit
         local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyBodyPos.X, 0, enemyBodyPos.Z)).Magnitude
 
-        -- Settings
         local idealDistance = 15 
         local minThreshold = 8   
         local maxThreshold = 25  
@@ -207,15 +206,12 @@ RunService:BindToRenderStep("SmartTetherLock", Enum.RenderPriority.Camera.Value 
             if CCTV_Position == nil then
                 CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
             end
-            
             local distToCam = (myHeadPos - CCTV_Position).Magnitude
             if distToCam < minThreshold or distToCam > maxThreshold then
                 CCTV_Position = myHeadPos + (directionAway * idealDistance) + Vector3.new(0, camHeight, 0)
             end
         end
-
         workspace.CurrentCamera.CFrame = CFrame.lookAt(CCTV_Position, enemyBodyPos)
-
     else
         if workspace.CurrentCamera.CameraType == Enum.CameraType.Scriptable then
             workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
