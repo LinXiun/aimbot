@@ -9,6 +9,17 @@ local RootPart = Character:WaitForChild("HumanoidRootPart")
 local Hum = Character:WaitForChild("Humanoid")
 local Camera = workspace.CurrentCamera
 
+-- --- YOUR BLUE HIGHLIGHT ---
+local MyHighlight = Instance.new("Highlight")
+MyHighlight.Name = "SelfHighlight"
+MyHighlight.Adornee = Character
+MyHighlight.FillColor = Color3.fromRGB(0, 150, 255) -- Bright Blue
+MyHighlight.FillTransparency = 0.5
+MyHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- White Outline
+MyHighlight.OutlineTransparency = 0
+MyHighlight.Parent = Character
+
+
 -- --- CONFIGURATION ---
 local currentScale = 120
 local aimbotEnabled = true -- Now ON by default
@@ -219,36 +230,43 @@ end)
 --	end
 --end)
 
+-- --- ADD THIS VARIABLE JUST ABOVE YOUR RENDERSTEPPED LOOP ---
+local lastSafeDirection = nil
+
+-- --- YOUR UPDATED CAMERA LOOP ---
 RunService:BindToRenderStep("FinalLock", Enum.RenderPriority.Camera.Value + 1, function()
-    -- FIXED: Removed '.char' because currentTarget is already the character model
     if aimbotEnabled and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") and Character:FindFirstChild("Head") then
         
         local myHeadPos = Character.Head.Position
-        -- Using HumanoidRootPart for the enemy so you aim at their torso (better for combat)
+        -- Target shifted to Body (HumanoidRootPart) as requested
         local enemyBodyPos = currentTarget.HumanoidRootPart.Position
 
-        -- 1. CALCULATE THE ACTUAL DISTANCE
+        -- 1. CALCULATE THE FLAT DISTANCE
         local flatDist = (Vector3.new(myHeadPos.X, 0, myHeadPos.Z) - Vector3.new(enemyBodyPos.X, 0, enemyBodyPos.Z)).Magnitude
 
-        -- 2. SAFE CHECK: ONLY CALCULATE DIRECTION IF NOT ON TOP OF THEM
-        local directionAway
-        if flatDist > 1.5 then
-            -- Normal Orbiting
-            directionAway = (myHeadPos - enemyBodyPos).Unit
-        else
-            -- If too close, use the Camera's current "Look" direction 
-            -- to prevent the spinning glitch
-            directionAway = -Camera.CFrame.LookVector 
+        -- 2. THE "LAST SAFE DIRECTION" LOGIC (CCTV Effect)
+        if flatDist > 3 then
+            -- If you are a safe distance away, update the orbit direction normally
+            lastSafeDirection = (myHeadPos - enemyBodyPos).Unit
+        elseif lastSafeDirection == nil then
+            -- Fallback just in case you activate the lock while already touching them
+            lastSafeDirection = (myHeadPos - enemyBodyPos).Unit
         end
+        -- If flatDist is 3 or less, the script skips updating and just uses the 'lastSafeDirection'
 
         -- 3. APPLY SETTINGS
         local camDistance = 12
-        local camHeight = 3 -- Height above your head
+        local camHeight = 3 
 
-        local newCamPos = myHeadPos + (directionAway * camDistance) + Vector3.new(0, camHeight, 0)
+        -- The camera sits at the CCTV spot
+        local newCamPos = myHeadPos + (lastSafeDirection * camDistance) + Vector3.new(0, camHeight, 0)
 
         -- 4. APPLY TRANSFORMATION
-        -- Removed the Scriptable toggle. We just force the CFrame directly like in your working test!
+        -- Camera base stays still, but the lens rotates to track the body
         Camera.CFrame = CFrame.lookAt(newCamPos, enemyBodyPos)
+    else
+        -- Reset the safe direction when the enemy dies or aimbot turns off 
+        -- so it's fresh for the next target
+        lastSafeDirection = nil
     end
 end)
